@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: EcomifyAPI
+      POSTGRES_USER: keycloak_user
+      POSTGRES_PASSWORD: K3ycl0ak_P0stgr3s_2025! # Senha mais forte para o Postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "keycloak_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: EcomifyAPI
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: K3ycl0ak_P0stgr3s_2025! # Mesma senha do Postgres
+      KC_BOOTSTRAP_ADMIN: admin_user
+      KC_BOOTSTRAP_ADMIN_PASSWORD: Adm1n_K3ycl0ak_2025! # Senha forte para o admin do Keycloak
+      KC_IMPORT: /opt/keycloak/data/import/realm-export.json
+    volumes:
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json # Mapeia o arquivo local para o container
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - "start-dev"
+      - "--import-realm" # Ativa a importação automática dos realms no diretório mapeado
+
+volumes:
+  postgres_data:

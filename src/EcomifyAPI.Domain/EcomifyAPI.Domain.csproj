@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EcomifyAPI.Common\EcomifyAPI.Common.csproj" />
+    <ProjectReference Include="..\EcomifyAPI.Contracts\EcomifyAPI.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>
