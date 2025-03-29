@@ -26,17 +26,102 @@ public class ProductRepository : IProductRepository
         _transaction = transaction;
     }
 
+    public async Task<IEnumerable<ProductMapping>> GetProductsAsync(CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+            SELECT 
+                p.id,  
+                p.name,
+                p.description,
+                p.price,
+                p.currency_code AS currencyCode, 
+                p.image_url AS imageUrl,
+                p.status,
+                p.stock,
+                c.id AS categoryId,
+                c.name AS categoryName,
+                c.description AS categoryDescription,
+                pc.category_id AS productCategoryId,
+                pc.product_id AS productId
+            FROM products p
+            LEFT JOIN product_categories pc ON p.id = pc.product_id
+            LEFT JOIN categories c ON pc.category_id = c.id
+            ";
+
+        var productDictionary = new Dictionary<Guid, ProductMapping>();
+
+        var products = await Connection.QueryAsync<ProductMapping, CategoryMapping, ProductMapping>(
+            new CommandDefinition(query, cancellationToken: cancellationToken, transaction: Transaction),
+            (product, category) =>
+            {
+                if (!productDictionary.TryGetValue(product.Id, out var existingProduct))
+                {
+                    existingProduct = product;
+                    existingProduct.ProductCategories = [];
+                    existingProduct.Categories = [];
+                    productDictionary[existingProduct.Id] = existingProduct;
+                }
+
+                if (category is not null && !existingProduct.Categories.Any(c => c.CategoryId == category.CategoryId))
+                {
+                    existingProduct.Categories.Add(category);
+                }
+
+                return existingProduct;
+            },
+            splitOn: "categoryId"
+        );
+
+        return [.. productDictionary.Values];
+    }
+
     public async Task<ProductMapping?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string query = @"
-            SELECT * FROM products WHERE id = @Id
-            ";
+        SELECT 
+            p.id,  
+            p.name,
+            p.description,
+            p.price,
+            p.currency_code AS currencyCode, 
+            p.image_url AS imageUrl,
+            p.status,
+            p.stock,
+            c.id AS categoryId,
+            c.name AS categoryName,
+            c.description AS categoryDescription,
+            pc.category_id AS productCategoryId,
+            pc.product_id AS productId
+        FROM products p
+        LEFT JOIN product_categories pc ON p.id = pc.product_id
+        LEFT JOIN categories c ON pc.category_id = c.id
+        WHERE p.id = @Id";
 
-        var product = await Connection.QueryAsync<ProductMapping>(
-            new CommandDefinition(query, new { Id = id }, cancellationToken: cancellationToken, transaction: Transaction)
+        var productDictionary = new Dictionary<Guid, ProductMapping>();
+
+        var products = await Connection.QueryAsync<ProductMapping, CategoryMapping, ProductMapping>(
+            new CommandDefinition(query, new { Id = id }, cancellationToken: cancellationToken, transaction: Transaction),
+            (product, category) =>
+            {
+                if (!productDictionary.TryGetValue(product.Id, out var existingProduct))
+                {
+                    existingProduct = product;
+                    existingProduct.ProductCategories = [];
+                    existingProduct.Categories = [];
+                    productDictionary[existingProduct.Id] = existingProduct;
+                }
+
+                if (category is not null && !existingProduct.Categories.Any(c => c.CategoryId == category.CategoryId))
+                {
+                    existingProduct.Categories.Add(category);
+                }
+
+                return existingProduct;
+            },
+            splitOn: "categoryId"
         );
 
-        return product.FirstOrDefault();
+        return products.FirstOrDefault();
     }
 
     public async Task<CategoryMapping?> GetCategoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -54,18 +139,18 @@ public class ProductRepository : IProductRepository
     public async Task<Guid> CreateProductAsync(Product product, CancellationToken cancellationToken = default)
     {
         const string query = @"
-            INSERT INTO products (id, name, description, price, stock, image_url, status)
-            VALUES (@Id, @Name, @Description, @Price, @Stock, @ImageUrl, @Status)
+            INSERT INTO products (name, description, price, currency_code, stock, image_url, status)
+            VALUES (@Name, @Description, @Price, @CurrencyCode, @Stock, @ImageUrl, @Status)
             RETURNING id;
             ";
 
         var productId = await Connection.ExecuteScalarAsync<Guid>(
             new CommandDefinition(query, new
             {
-                product.Id,
                 product.Name,
                 product.Description,
-                product.Price,
+                Price = product.Price.Amount,
+                CurrencyCode = product.Price.Code,
                 product.Stock,
                 product.ImageUrl,
                 product.Status,
@@ -73,6 +158,19 @@ public class ProductRepository : IProductRepository
         );
 
         return productId;
+    }
+
+    public async Task<IEnumerable<ProductCategoryMapping>> GetProductCategoryByIdAsync(Guid productId, CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+            SELECT * FROM product_categories WHERE product_id = @ProductId
+            ";
+
+        var productCategory = await Connection.QueryAsync<ProductCategoryMapping>(
+            new CommandDefinition(query, new { ProductId = productId }, cancellationToken: cancellationToken, transaction: Transaction)
+        );
+
+        return productCategory;
     }
 
     public async Task<bool> CreateCategoryAsync(Category category, CancellationToken cancellationToken = default)

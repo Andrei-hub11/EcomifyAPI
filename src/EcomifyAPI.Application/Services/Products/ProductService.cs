@@ -25,16 +25,34 @@ public sealed class ProductService : IProductService
         _logger = logger;
     }
 
+    public async Task<Result<IReadOnlyList<ProductResponseDTO>>> GetProductsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var products = await _productRepository.GetProductsAsync(cancellationToken);
+
+            return Result.Ok(products.ToResponseDTO());
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
     public async Task<Result<ProductResponseDTO>> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         try
         {
             var product = await _productRepository.GetProductByIdAsync(id, cancellationToken);
 
+
             if (product is null)
             {
                 return Result.Fail(ProductErrorFactory.ProductNotFoundById(id));
             }
+
+            var productCategories = await _productRepository.GetProductCategoryByIdAsync(id, cancellationToken);
+
+            product.ProductCategories = [.. productCategories];
 
             return product.ToResponseDTO();
         }
@@ -53,6 +71,7 @@ public sealed class ProductService : IProductService
             request.Name,
             request.Description,
             request.Price,
+            request.CurrencyCode,
             request.Stock,
             request.ImageUrl,
             request.Status);

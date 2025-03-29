@@ -13,6 +13,7 @@ public static class MappingExtensionsProducts
         product.Name,
         product.Description,
         product.Price,
+        product.CurrencyCode,
         product.Stock,
         product.ImageUrl,
         product.Status);
@@ -22,7 +23,7 @@ public static class MappingExtensionsProducts
             throw new InvalidOperationException(result.Error.Description);
         }
 
-        result.Value.UpdateCategories(product.Categories.Select(category => new ProductCategory(category.ProductId, category.CategoryId)).ToList());
+        result.Value.UpdateCategories(product.ProductCategories.Select(category => new ProductCategory(category.ProductId, category.ProductCategoryId)).ToList());
 
         return result.Value;
     }
@@ -33,6 +34,7 @@ public static class MappingExtensionsProducts
         product.Name,
         product.Description,
         product.Price,
+        product.CurrencyCode,
         product.Stock,
         product.ImageUrl,
         product.Status);
@@ -42,21 +44,21 @@ public static class MappingExtensionsProducts
             throw new InvalidOperationException(result.Error.Description);
         }
 
-        result.Value.UpdateCategories(product.Categories.Select(category => new ProductCategory(category.ProductId, category.CategoryId)).ToList());
-
         return result.Value;
     }
 
-    public static ProductResponseDTO ToResponseDTO(this Product product)
+    public static ProductResponseDTO ToResponseDTO(this Product product, List<CategoryMapping> categories)
     {
         return new ProductResponseDTO(product.Id,
         product.Name,
         product.Description,
         product.Price.Amount,
+        product.Price.Code,
         product.Stock,
         product.ImageUrl,
         product.Status,
-        [.. product.Categories.Select(category => new ProductCategoryResponseDTO(category.ProductId, category.CategoryId))]);
+        [.. categories.Where(category => product.ProductCategories.Any(pc => pc.CategoryId == category.CategoryId))
+        .Select(category => new CategoryResponseDTO(category.CategoryId, category.CategoryName, category.CategoryDescription))]);
     }
 
     public static ProductResponseDTO ToResponseDTO(this ProductMapping product)
@@ -65,9 +67,15 @@ public static class MappingExtensionsProducts
         product.Name,
         product.Description,
         product.Price,
+        product.CurrencyCode,
         product.Stock,
         product.ImageUrl,
         product.Status,
-        [.. product.Categories.Select(category => new ProductCategoryResponseDTO(category.ProductId, category.CategoryId))]);
+        [.. product.Categories.Select(category => new CategoryResponseDTO(category.CategoryId, category.CategoryName, category.CategoryDescription))]);
+    }
+
+    public static IReadOnlyList<ProductResponseDTO> ToResponseDTO(this IEnumerable<ProductMapping> products)
+    {
+        return products.Select(product => product.ToResponseDTO()).ToList();
     }
 }

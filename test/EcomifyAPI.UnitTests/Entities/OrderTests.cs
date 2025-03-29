@@ -104,6 +104,7 @@ public class OrderTests
             "Sample Product",
             "Description",
             100,
+            "BRL",
             10,
             "http://example.com/image.jpg",
             ProductStatusEnum.Active);

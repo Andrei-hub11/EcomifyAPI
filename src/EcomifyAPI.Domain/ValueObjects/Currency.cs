@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 
 using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Domain.Exceptions;
 
 namespace EcomifyAPI.Domain.ValueObjects;
 
@@ -15,7 +16,7 @@ public readonly record struct Currency
 
         if (errors.Count != 0)
         {
-            throw new ArgumentException(string.Join(", ", errors.Select(e => e.Description)));
+            throw new DomainException(errors);
         }
 
         Code = code;
@@ -26,14 +27,21 @@ public readonly record struct Currency
     {
         var errors = new List<ValidationError>();
 
+        var validCurrencyCodes = new HashSet<string> { "BRL", "USD" };
+
         if (string.IsNullOrWhiteSpace(code))
         {
-            errors.Add(ValidationError.Create("Currency code is required", "ERR_CURRENCY_CODE_REQUIRED", "CurrencyCode"));
+            errors.Add(ValidationError.Create("Currency code is required", "ERR_CURRENCY_REQ", "CurrencyCode"));
+        }
+
+        if (!validCurrencyCodes.Contains(code))
+        {
+            errors.Add(ValidationError.Create("Invalid currency code", "ERR_INVALID_CURRENCY", "CurrencyCode"));
         }
 
         if (amount <= 0)
         {
-            errors.Add(ValidationError.Create("Amount must be greater than 0", "ERR_AMOUNT_MUST_BE_GREATER_THAN_0", "Amount"));
+            errors.Add(ValidationError.Create("Amount must be greater than 0", "ERR_AMOUNT_GT_0", "Amount"));
         }
 
         return errors.AsReadOnly();

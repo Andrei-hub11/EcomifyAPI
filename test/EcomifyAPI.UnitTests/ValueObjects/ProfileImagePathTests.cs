@@ -1,3 +1,5 @@
+using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Domain.Exceptions;
 using EcomifyAPI.UnitTests.Builders;
 
 using Shouldly;
@@ -26,15 +28,15 @@ public class ProfileImagePathTests
         result.Value.ShouldBe(path);
     }
 
-    [Fact]
-    public void Create_ShouldFail_WhenPathIsEmpty()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void Create_ShouldSucceed_WhenNullOrEmptyPathProvided(string? path)
     {
-        // Arrange
-        var path = "";
+        var result = _builder.WithPath(path!).Build();
 
-        // Act
-        Should.Throw<ArgumentException>(() => _builder.WithPath(path).Build())
-        .Message.ShouldBe("Profile image path cannot be empty (Parameter 'value')");
+        // Assert
+        result.Value.ShouldBe(string.Empty);
     }
 
     [Fact]
@@ -44,8 +46,9 @@ public class ProfileImagePathTests
         var path = new string('a', 256);
 
         // Act
-        Should.Throw<ArgumentException>(() => _builder.WithPath(path).Build())
-        .Message.ShouldBe("Profile image path cannot be longer than 255 characters (Parameter 'value')");
+        Should.Throw<DomainException>(() => _builder.WithPath(path).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_IMG_PATH_LONG"
+        && e.Description == "Profile image path cannot be longer than 255 characters" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
@@ -55,8 +58,9 @@ public class ProfileImagePathTests
         var path = "C:\\path\\to\\profile\\image.jpg";
 
         // Act
-        Should.Throw<ArgumentException>(() => _builder.WithPath(path).Build())
-        .Message.ShouldBe("Profile image path cannot be a rooted path (Parameter 'value')");
+        Should.Throw<DomainException>(() => _builder.WithPath(path).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_IMG_PATH_ROOTED"
+        && e.Description == "Profile image path cannot be a rooted path" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
@@ -66,8 +70,9 @@ public class ProfileImagePathTests
         var path = "folder/subfolder/invalid<>:\"/\\|?*.txt";
 
         // Act
-        Should.Throw<ArgumentException>(() => _builder.WithPath(path).Build())
-        .Message.ShouldBe("Profile image path contains invalid characters (Parameter 'value')");
+        Should.Throw<DomainException>(() => _builder.WithPath(path).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_IMG_PATH_INV_CHAR"
+        && e.Description == "Profile image path contains invalid characters" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
@@ -77,7 +82,8 @@ public class ProfileImagePathTests
         var path = "path/to/profile/image.txt";
 
         // Act
-        Should.Throw<ArgumentException>(() => _builder.WithPath(path).Build())
-        .Message.ShouldBe("Profile image path has an invalid extension (Parameter 'value')");
+        Should.Throw<DomainException>(() => _builder.WithPath(path).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_IMG_PATH_EXT"
+        && e.Description == "Profile image path has an invalid extension" && e.ErrorType == ErrorType.Validation);
     }
 }

@@ -1,5 +1,6 @@
+using EcomifyAPI.Common.Utils.ResultError;
 using EcomifyAPI.Contracts.Enums;
-
+using EcomifyAPI.Domain.Exceptions;
 using EcomifyAPI.UnitTests.Builders;
 
 using Shouldly;
@@ -52,6 +53,29 @@ public class ProductTests
         // Assert
         result.IsFailure.ShouldBeTrue();
         result.Errors.ShouldContain(e => e.Code == "ERR_PRICE_MUST_BE_GREATER_THAN_0");
+    }
+
+    [Fact]
+    public void Create_ShouldFail_WhenCurrencyCodeIsEmpty()
+    {
+        // Act
+        Should.Throw<DomainException>(() =>
+            _builder
+            .WithCurrencyCode(string.Empty)
+            .Build()).Errors.ShouldContain(e => e.Code == "ERR_CURRENCY_REQ"
+            && e.Description == "Currency code is required" && e.ErrorType == ErrorType.Validation);
+
+    }
+
+    [Fact]
+    public void Create_ShouldFail_WhenCurrencyCodeIsInvalid()
+    {
+        // Act
+        Should.Throw<DomainException>(() =>
+            _builder
+            .WithCurrencyCode("INVALID")
+            .Build()).Errors.ShouldContain(e => e.Code == "ERR_INVALID_CURRENCY"
+            && e.Description == "Invalid currency code" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]

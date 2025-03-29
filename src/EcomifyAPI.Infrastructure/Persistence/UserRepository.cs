@@ -73,7 +73,7 @@ public class UserRepository : IUserRepository
     } */
 
     public async Task<ApplicationUserMapping?> GetUserByIdAsync(
-        Guid userId,
+        string userId,
         CancellationToken cancellationToken
     )
     {
@@ -90,7 +90,7 @@ public class UserRepository : IUserRepository
     LEFT JOIN keycloak_group g ON ugm.group_id = g.id
     LEFT JOIN group_role_mapping grm ON g.id = grm.group_id
     LEFT JOIN keycloak_role r ON grm.role_id = r.id
-    WHERE u.id = @Id
+    WHERE u.keycloak_id = @Id
     GROUP BY u.id, ue.id;";
 
         var result = await Connection.QueryAsync<ApplicationUserMapping>(
@@ -215,8 +215,8 @@ public class UserRepository : IUserRepository
             new
             {
                 user.KeycloakId,
-                user.Email,
-                ProfilePictureUrl = user.ProfileImagePath,
+                Email = user.Email.Value,
+                ProfilePictureUrl = user.ProfileImagePath.Value,
             },
             transaction: Transaction
         );

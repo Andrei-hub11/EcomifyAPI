@@ -1,3 +1,5 @@
+using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Domain.Exceptions;
 using EcomifyAPI.Domain.ValueObjects;
 using EcomifyAPI.UnitTests.Builders;
 
@@ -33,48 +35,54 @@ public class OrderItemTests
     public void Create_ShouldFail_WhenIdIsEmpty()
     {
         // Arrange
-        Should.Throw<ArgumentException>(() => _builder.WithId(Guid.Empty).Build())
-        .Message.ShouldBe("Id is required");
+        Should.Throw<DomainException>(() => _builder.WithId(Guid.Empty).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_ID_REQUIRED"
+        && e.Description == "Id is required" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
     public void Create_ShouldFail_WhenProductIdIsEmpty()
     {
         // Arrange
-        Should.Throw<ArgumentException>(() => _builder.WithProductId(Guid.Empty).Build())
-        .Message.ShouldBe("ProductId is required");
+        Should.Throw<DomainException>(() => _builder.WithProductId(Guid.Empty).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_PRODUCT_ID_REQUIRED"
+        && e.Description == "ProductId is required" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
     public void Create_ShouldFail_WhenQuantityIsZero()
     {
         // Arrange
-        Should.Throw<ArgumentException>(() => _builder.WithQuantity(0).Build())
-        .Message.ShouldBe("Quantity must be greater than 0");
+        Should.Throw<DomainException>(() => _builder.WithQuantity(0).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_QTY_GT_0"
+        && e.Description == "Quantity must be greater than 0" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
     public void Create_ShouldFail_WhenUnitPriceIsZero()
     {
         // Arrange
-        Should.Throw<ArgumentException>(() => _builder.WithUnitPrice(new Currency("USD", 0)).Build())
-        .Message.ShouldBe("Amount must be greater than 0");
+        Should.Throw<DomainException>(() => _builder.WithUnitPrice(new Currency("USD", 0)).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_AMOUNT_GT_0"
+        && e.Description == "Amount must be greater than 0" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
     public void Create_ShouldFail_WhenQuantityIsNegative()
     {
         // Arrange
-        Should.Throw<ArgumentException>(() => _builder.WithQuantity(-1).Build())
-        .Message.ShouldBe("Quantity must be greater than 0");
+        Should.Throw<DomainException>(() => _builder.WithQuantity(-1).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_QTY_GT_0"
+        && e.Description == "Quantity must be greater than 0" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
     public void Create_ShouldFail_WhenUnitPriceIsNegative()
     {
         // Arrange
-        Should.Throw<ArgumentException>(() => _builder.WithUnitPrice(new Currency("USD", -1)).Build())
-        .Message.ShouldBe("Amount must be greater than 0");
+        Should.Throw<DomainException>(() => _builder.WithUnitPrice(new Currency("USD", -1)).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_AMOUNT_GT_0"
+        && e.Description == "Amount must be greater than 0" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
@@ -101,7 +109,8 @@ public class OrderItemTests
         .WithUnitPrice(new Currency("USD", 100)).Build();
 
         // Act
-        Should.Throw<ArgumentException>(() => orderItem.UpdateQuantity(0))
-        .Message.ShouldBe("Quantity must be greater than 0 (Parameter 'quantity')");
+        Should.Throw<DomainException>(() => orderItem.UpdateQuantity(0))
+        .Errors.ShouldContain(e => e.Code == "ERR_QTY_GT_0"
+        && e.Description == "Quantity must be greater than 0" && e.ErrorType == ErrorType.Validation);
     }
 }

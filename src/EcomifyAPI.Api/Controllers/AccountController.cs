@@ -23,12 +23,12 @@ public class AccountController : ControllerBase
     }
 
     /// <summary>
-    /// Retrieve the user profile
+    /// Retrieves the user profile.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token</param>
-    /// <returns>The user profile</returns>
-    /// <response code="200">The user profile</response>
-    /// <response code="401">The user is not authenticated</response>
+    /// <returns>A <see cref="UserResponseDTO"/> containing the user profile.</returns>
+    /// <response code="200">Returns the user profile when found successfully.</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="422">Validation errors</response>
     [Authorize]
     [HttpGet("profile")]
@@ -66,13 +66,13 @@ public class AccountController : ControllerBase
     //}
 
     /// <summary>
-    /// Register a new user in the keycloak client
+    /// Registers a new user in the keycloak client.
     /// </summary>
     /// <param name="request">The user registration request</param>
     /// <param name="cancellationToken">The cancellation token</param>
-    /// <returns>The registered user</returns>
-    /// <response code="200">The registered user</response>
-    /// <response code="400">Bad request</response>
+    /// <returns>A <see cref="UserResponseDTO"/> containing the registered user.</returns>
+    /// <response code="200">Returns the registered user when found successfully.</response>
+    /// <response code="400">Some invalid data was provided.</response>
     /// <response code="409">Email already exists</response>
     /// <response code="422">Validation errors</response>
     [HttpPost("register")]
@@ -91,13 +91,13 @@ public class AccountController : ControllerBase
     }
 
     /// <summary>
-    /// Login a user in the keycloak client
+    /// Logs in a user in the keycloak client.
     /// </summary>
     /// <param name="request">The user login request</param>
     /// <param name="cancellationToken">The cancellation token</param>
-    /// <returns>The authenticated user</returns>
-    /// <response code="200">The authenticated user</response>
-    /// <response code="400">Bad request</response>
+    /// <returns>A <see cref="AuthResponseDTO"/> containing the authenticated user.</returns>
+    /// <response code="200">Returns the authenticated user when found successfully.</response>
+    /// <response code="400">Some invalid data was provided.</response>
     /// <response code="401">Unauthorized</response>
     /// <response code="422">Validation errors</response>
     [HttpPost("login")]
@@ -115,13 +115,13 @@ public class AccountController : ControllerBase
     }
 
     /// <summary>
-    /// Send a forgot password email to the user
+    /// Sends a forgot password email to the user.
     /// </summary>
     /// <param name="request">The forgot password request</param>
     /// <param name="cancellationToken">The cancellation token</param>
-    /// <returns>The forgot password response</returns>
-    /// <response code="200">The forgot password response</response>
-    /// <response code="400">Bad request</response>
+    /// <returns>A boolean value indicating whether the forgot password email was sent successfully.</returns>
+    /// <response code="200">Returns true if the forgot password email was sent successfully.</response>
+    /// <response code="400">Some invalid data was provided.</response>
     /// <response code="422">Validation errors</response>
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword(
@@ -132,19 +132,19 @@ public class AccountController : ControllerBase
         var result = await _accountService.ForgotPasswordAsync(request, cancellationToken);
 
         return result.Match(
-            onSuccess: (response) => Ok(response),
+            onSuccess: (isSuccess) => Ok(isSuccess),
             onFailure: (errors) => errors.ToProblemDetailsResult()
         );
     }
 
     /// <summary>
-    /// Refresh the access token
+    /// Refreshes the access token.
     /// </summary>
     /// <param name="request">The refresh token request</param>
     /// <param name="cancellationToken">The cancellation token</param>
-    /// <returns>The refreshed access token</returns>
-    /// <response code="200">The refreshed access token</response>
-    /// <response code="400">Bad request</response>
+    /// <returns>A <see cref="UpdateAccessTokenResponseDTO"/> containing the refreshed access token.</returns>
+    /// <response code="200">Returns the refreshed access token when found successfully.</response>
+    /// <response code="400">Some invalid data was provided.</response>
     /// <response code="422">Validation errors</response>
     [HttpPost("token-renew")]
     public async Task<IActionResult> RefreshAccessToken(
@@ -177,13 +177,13 @@ public class AccountController : ControllerBase
     //}
 
     /// <summary>
-    /// Update the user password
+    /// Updates the user password.
     /// </summary>
     /// <param name="request">The update password request</param>
     /// <param name="cancellationToken">The cancellation token</param>
-    /// <returns>true if the password is updated, false otherwise</returns>
-    /// <response code="200">The updated password response</response>
-    /// <response code="400">Bad request</response>
+    /// <returns>A boolean value indicating whether the password is updated, false otherwise.</returns>
+    /// <response code="200">Returns true if the password is updated, false otherwise.</response>
+    /// <response code="400">Some invalid data was provided.</response>
     /// <response code="422">Validation errors</response>
     [HttpPut("update-password")]
     public async Task<IActionResult> UpdateUserPassword(
@@ -194,7 +194,7 @@ public class AccountController : ControllerBase
         var result = await _accountService.UpdateUserPasswordAsync(request, cancellationToken);
 
         return result.Match(
-            onSuccess: (response) => Ok(response),
+            onSuccess: (isSuccess) => Ok(isSuccess),
             onFailure: (errors) => errors.ToProblemDetailsResult()
         );
     }

@@ -7,9 +7,28 @@ namespace EcomifyAPI.Application.DTOMappers;
 public static class MappingExtensionsOrders
 {
 
-    private static AddressDTO ToAddressDTO(this AddressMapping address)
+    private static AddressDTO ToAddressDTO(this ShippingAddressMapping address)
     {
-        return new AddressDTO(address.Street, address.Number, address.City, address.State, address.ZipCode, address.Country, address.Complement);
+        return new AddressDTO(
+            address.ShippingStreet,
+            address.ShippingNumber,
+            address.ShippingCity,
+            address.ShippingState,
+            address.ShippingZipCode,
+            address.ShippingCountry,
+            address.ShippingComplement);
+    }
+
+    private static AddressDTO ToAddressDTO(this BillingAddressMapping address)
+    {
+        return new AddressDTO(
+            address.BillingStreet,
+            address.BillingNumber,
+            address.BillingCity,
+            address.BillingState,
+            address.BillingZipCode,
+            address.BillingCountry,
+            address.BillingComplement);
     }
 
     private static IReadOnlyList<OrderItemDTO> ToOrderItemDTO(this List<OrderItemMapping> items)
@@ -34,5 +53,10 @@ public static class MappingExtensionsOrders
             order.BillingAddress.ToAddressDTO(),
             order.Items.ToOrderItemDTO()
         );
+    }
+
+    public static IReadOnlyList<OrderResponseDTO> ToResponseDTO(this IEnumerable<OrderMapping> orders)
+    {
+        return [.. orders.Select(order => order.ToResponseDTO())];
     }
 }

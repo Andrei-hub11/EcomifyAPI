@@ -10,6 +10,7 @@ public class ProductBuilder
     private string _name = "Test Product";
     private readonly string _description = "Test Description";
     private decimal _price = 100.00m;
+    private string _currencyCode = "BRL";
     private int _stock = 10;
     private readonly string _imageUrl = "http://example.com/image.jpg";
     private ProductStatusEnum _status = ProductStatusEnum.Active;
@@ -32,6 +33,12 @@ public class ProductBuilder
         return this;
     }
 
+    public ProductBuilder WithCurrencyCode(string currencyCode)
+    {
+        _currencyCode = currencyCode;
+        return this;
+    }
+
     public ProductBuilder WithStock(int stock)
     {
         _stock = stock;
@@ -51,6 +58,7 @@ public class ProductBuilder
             _name,
             _description,
             _price,
+            _currencyCode,
             _stock,
             _imageUrl,
             _status);

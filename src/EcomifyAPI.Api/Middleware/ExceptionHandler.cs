@@ -1,7 +1,11 @@
 ﻿using System.Net;
 
+using EcomifyAPI.Api.Models;
 using EcomifyAPI.Api.Utils;
 using EcomifyAPI.Application.Contracts.Logging;
+using EcomifyAPI.Common.Extensions;
+using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Contracts.Models;
 using EcomifyAPI.Domain.Exceptions;
 
 using Microsoft.AspNetCore.Diagnostics;
@@ -32,6 +36,12 @@ public class ExceptionHandler : IExceptionHandler
         var result = GetProblemDetails(httpContext, exception);
         httpContext.Response.StatusCode = result.Status ?? 500;
 
+        if (result is CustomProblemDetails customProblemDetails)
+        {
+            await httpContext.Response.WriteAsJsonAsync(customProblemDetails, cancellationToken: cancellationToken);
+            return true;
+        }
+
         await httpContext.Response.WriteAsJsonAsync(result, cancellationToken: cancellationToken);
         return true;
     }
@@ -51,6 +61,14 @@ public class ExceptionHandler : IExceptionHandler
                 HttpStatusCode.Unauthorized,
                 "Unauthorized",
                 "You are not authorized to perform this action."
+            ),
+
+            DomainException domainException => CreateValidationErrorDetails(
+                context,
+                HttpStatusCode.UnprocessableEntity,
+                "Validation Error",
+                "One or more validation errors occurred.",
+                domainException.Errors
             ),
 
             _ => CreateProblemDetails(
@@ -84,13 +102,45 @@ public class ExceptionHandler : IExceptionHandler
         string detail
     )
     {
+        var statusCodeValue = (int)statusCode;
+
         return new ProblemDetails
         {
-            Status = (int)statusCode,
-            Type = $"https://httpstatuses.com/{(int)statusCode}",
+            Status = statusCodeValue,
+            Type = $"https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/{statusCodeValue}",
             Title = title,
             Detail = detail,
             Instance = $"{context.Request.Method} {context.Request.Path}",
         };
+    }
+
+    private ProblemDetails CreateValidationErrorDetails(
+        HttpContext context,
+        HttpStatusCode statusCode,
+        string title,
+        string detail,
+        IReadOnlyList<IError> errors
+    )
+    {
+        var statusCodeValue = (int)statusCode;
+
+        Dictionary<string, ValidationErrorDetail[]> validationErrors = errors
+            .OfType<ValidationError>()
+            .GroupBy(error => error.Field)
+            .ToDictionary(
+                group => group.Key.CapitalizeFirstLetter(),
+                group => group.Select(error =>
+                new ValidationErrorDetail(error.Code, error.Description)).ToArray());
+
+        var validationErrorDetails = new CustomProblemDetails(validationErrors)
+        {
+            Status = statusCodeValue,
+            Type = $"https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/{statusCodeValue}",
+            Title = title,
+            Detail = detail,
+            Instance = $"{context.Request.Method} {context.Request.Path}",
+        };
+
+        return validationErrorDetails;
     }
 }

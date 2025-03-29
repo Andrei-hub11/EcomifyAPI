@@ -14,7 +14,7 @@ public class UserMapping
     public string ProfileImagePath { get; set; } = string.Empty;
 
     [JsonExtensionData]
-    private readonly IDictionary<string, JToken> _additionalData = default!;
+    private readonly IDictionary<string, JToken> _additionalData = new Dictionary<string, JToken>();
 
     [OnDeserialized]
     internal void OnDeserialized(StreamingContext context)

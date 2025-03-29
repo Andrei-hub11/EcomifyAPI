@@ -5,7 +5,7 @@ namespace EcomifyAPI.UnitTests.ValueObjects.Builders;
 public class AddressBuilder
 {
     private string _street = "123 Main St";
-    private readonly int _number = 1;
+    private int _number = 1;
     private string _complement = "Apt 4B";
     private string _city = "New York";
     private string _state = "NY";
@@ -15,6 +15,12 @@ public class AddressBuilder
     public AddressBuilder WithStreet(string street)
     {
         _street = street;
+        return this;
+    }
+
+    public AddressBuilder WithNumber(int number)
+    {
+        _number = number;
         return this;
     }
 

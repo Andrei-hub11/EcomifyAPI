@@ -9,6 +9,7 @@ using EcomifyAPI.Application.DTOMappers;
 using EcomifyAPI.Common.Utils.Errors;
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Common.Validation;
 using EcomifyAPI.Contracts.Models;
 using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
@@ -86,7 +87,7 @@ public class AccountService : IAccountService
         CancellationToken cancellationToken
     )
     {
-        var user = await _userRepository.GetUserByIdAsync(Guid.Parse(userId), cancellationToken);
+        var user = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
 
         if (user == null)
         {
@@ -114,9 +115,11 @@ public class AccountService : IAccountService
                 return Result.Fail(UserErrorFactory.EmailAlreadyExists());
             }
 
-            if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
+            var passwordErrors = PasswordValidation.Validate(request.Password);
+
+            if (passwordErrors.Any())
             {
-                return Result.Fail(Error.Validation("Password must be at least 8 characters long", "ERR_PASSWORD_TOO_SHORT", "Password"));
+                return Result.Fail(passwordErrors);
             }
 
             profileImage = await _imagesService.GetProfileImageAsync(request.ProfileImage);
@@ -211,6 +214,13 @@ public class AccountService : IAccountService
             if (user.IsFailure)
             {
                 return Result.Fail(user.Errors);
+            }
+
+            var passwordErrors = PasswordValidation.Validate(request.Password);
+
+            if (passwordErrors.Any())
+            {
+                return Result.Fail(passwordErrors);
             }
 
             var auth = await _keycloakService.LoginUserAync(request, cancellationToken);
@@ -449,7 +459,7 @@ public class AccountService : IAccountService
             }
 
             var userExisting = await _userRepository.GetUserByIdAsync(
-                Guid.Parse(request.UserId),
+                request.UserId,
                 cancellationToken
             );
 

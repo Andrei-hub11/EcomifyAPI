@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 
@@ -79,6 +80,7 @@ public class KeycloakService : IKeycloakService
                 username = request.UserName,
                 email = request.Email,
                 enabled = true,
+                groups = new[] { "/Users" },
                 credentials = new[]
                 {
                     new
@@ -115,21 +117,6 @@ public class KeycloakService : IKeycloakService
                 return Result.Fail(newUser.Errors);
             }
 
-            var result = await AddUserToGroupByNameAsync(newUser.Value.Id, "Users");
-
-            if (result.IsFailure)
-            {
-                return Result.Fail(result.Errors);
-            }
-
-            var groupId = await GetGroupIdByNameAsync("Users");
-
-            if (groupId.IsFailure)
-            {
-                return Result.Fail(groupId.Errors);
-            }
-
-            await AddGroupRoleToUserAsync(newUser.Value.Id, groupId.Value, "User");
 
             var userToken = await GetUserTokenAsync(request.UserName, request.Password);
 
@@ -138,12 +125,21 @@ public class KeycloakService : IKeycloakService
                 return Result.Fail(userToken.Errors);
             }
 
-            var roles = await GetRolesAsync(newUser.Value.Id);
+            var handler = new JwtSecurityTokenHandler();
+            var token = handler.ReadJwtToken(userToken.Value.AccessToken);
+            var rolesClaim = token.Claims.FirstOrDefault(c => c.Type == "resource_access")?.Value;
 
-            if (roles.IsFailure)
-            {
-                return Result.Fail(roles.Errors);
-            }
+            ThrowHelper.ThrowIfNull(rolesClaim);
+
+            var resourceAccess = JsonConvert.DeserializeObject<Dictionary<string, ResourceAccess>>(rolesClaim);
+
+            ThrowHelper.ThrowIfNull(resourceAccess);
+
+            var baseRealmRoles = resourceAccess["base-realm"].Roles;
+
+            ThrowHelper.ThrowIfNull(baseRealmRoles);
+
+            var userRoles = new HashSet<string>(baseRealmRoles);
 
             isRollback = false;
 
@@ -151,7 +147,7 @@ public class KeycloakService : IKeycloakService
                 newUser.Value.ToResponseDTO(),
                 userToken.Value.AccessToken,
                 userToken.Value.RefreshToken,
-                roles.Value.ToResponseDTO()
+                userRoles
             );
         }
         catch (Exception)
@@ -199,6 +195,22 @@ public class KeycloakService : IKeycloakService
                 return Result.Fail(userToken.Errors);
             }
 
+            var handler = new JwtSecurityTokenHandler();
+            var token = handler.ReadJwtToken(userToken.Value.AccessToken);
+            var rolesClaim = token.Claims.FirstOrDefault(c => c.Type == "resource_access")?.Value;
+
+            ThrowHelper.ThrowIfNull(rolesClaim);
+
+            var resourceAccess = JsonConvert.DeserializeObject<Dictionary<string, ResourceAccess>>(rolesClaim);
+
+            ThrowHelper.ThrowIfNull(resourceAccess);
+
+            var baseRealmRoles = resourceAccess["base-realm"].Roles;
+
+            ThrowHelper.ThrowIfNull(baseRealmRoles);
+
+            var userRoles = new HashSet<string>(baseRealmRoles);
+
             var user = await GetUserByEmailAsync(request.Email);
 
             if (user.IsFailure)
@@ -206,18 +218,11 @@ public class KeycloakService : IKeycloakService
                 return Result.Fail(user.Errors);
             }
 
-            var roles = await GetRolesAsync(user.Value.Id);
-
-            if (roles.IsFailure)
-            {
-                return Result.Fail(roles.Errors);
-            }
-
             return new AuthResponseDTO(
                 user.Value.ToResponseDTO(),
                 AccessToken: userToken.Value.AccessToken,
                 RefreshToken: userToken.Value.RefreshToken,
-                Roles: roles.Value.ToResponseDTO()
+                Roles: userRoles
             );
         }
         catch (Exception)
@@ -474,259 +479,6 @@ public class KeycloakService : IKeycloakService
 
         return tokenResponse;
     }
-
-    private async Task<Result<string>> GetGroupIdByNameAsync(string groupName)
-    {
-        var tokenResponse = await GetAdminTokenAsync();
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            tokenResponse.AccessToken
-        );
-
-        var groupUrl = $"{_endpointAdminBase}/groups?search={groupName}";
-
-        var response = await _httpClient.GetAsync(groupUrl);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new BadRequestException(
-                $"Failed to retrieve groups: {response.StatusCode}, {error}"
-            );
-        }
-
-        var jsonResponse = await response.Content.ReadAsStringAsync();
-        var groups = JsonConvert.DeserializeObject<List<GroupResponseDTO>>(jsonResponse);
-
-        var group = groups?.FirstOrDefault(g =>
-            g.Name.Equals(groupName, StringComparison.OrdinalIgnoreCase)
-        );
-
-        if (group?.Id == null)
-        {
-            return Result.Fail(ErrorFactory.ResourceNotFound("User group", groupName));
-        }
-
-        return group.Id;
-    }
-
-    private async Task<List<UserResponseDTO>> GetUsersInGroupAsync(string groupId)
-    {
-        var tokenResponse = await GetAdminTokenAsync();
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            tokenResponse.AccessToken
-        );
-
-        var usersUrl = $"{_endpointAdminBase}/groups/{groupId}/members";
-
-        var response = await _httpClient.GetAsync(usersUrl);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new BadRequestException(
-                $"Failed to retrieve users in group: {response.StatusCode}, {error}"
-            );
-        }
-
-        var jsonResponse = await response.Content.ReadAsStringAsync();
-
-        var users = JsonConvert.DeserializeObject<List<UserResponseDTO>>(jsonResponse);
-
-        ThrowHelper.ThrowIfNull(users);
-
-        return users;
-    }
-
-    private async Task<ClientMapping> GetClientByClientIdAsync(string clientId)
-    {
-        var tokenResponse = await GetAdminTokenAsync();
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            tokenResponse.AccessToken
-        );
-
-        var usersUrl = $"{_endpointAdminBase}/clients/?clientId={clientId}";
-
-        var response = await _httpClient.GetAsync(usersUrl);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new BadRequestException(
-                $"Failed to retrieve client with clientId = '{clientId}': {response.StatusCode}, {error}"
-            );
-        }
-
-        var jsonResponse = await response.Content.ReadAsStringAsync();
-
-        var clients = JsonConvert.DeserializeObject<List<ClientMapping>>(jsonResponse);
-
-        ThrowHelper.ThrowIfNull(clients);
-
-        return clients[0];
-    }
-
-    private async Task<List<RoleMappingDTO>> GetRolesByGroupIdAsync(string groupId)
-    {
-        var tokenResponse = await GetAdminTokenAsync();
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            tokenResponse.AccessToken
-        );
-
-        var roleUrl = $"{_endpointAdminBase}/groups/{groupId}/role-mappings";
-
-        var response = await _httpClient.GetAsync(roleUrl);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new BadRequestException(
-                $"Failed to retrieve roles for group {groupId}: {response.StatusCode}, {error}"
-            );
-        }
-
-        var jsonResponse = await response.Content.ReadAsStringAsync();
-        var clientMappingsResponse = JsonConvert.DeserializeObject<ResourceMappingsResponseDTO>(
-            jsonResponse
-        );
-
-        if (
-            clientMappingsResponse?.ClientMappings == null
-            || !clientMappingsResponse.ClientMappings.TryGetValue(
-                "base-realm",
-                out ResourceMappingDTO? value
-            )
-        )
-        {
-            throw new BadRequestException($"Client not found or mappings empty.");
-        }
-
-        var mappings = value.Mappings;
-
-        return mappings;
-    }
-
-    private async Task<Result<HashSet<RoleMappingDTO>>> GetRolesAsync(string userId)
-    {
-        var tokenResponse = await GetAdminTokenAsync();
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            tokenResponse.AccessToken
-        );
-
-        var clientId = _configuration.GetRequiredValue("UserKeycloakAdmin:client_id");
-
-        var client = await GetClientByClientIdAsync(clientId);
-
-        var rolesUrl =
-            $"{_endpointAdminBase}/users/{userId}/role-mappings/clients/{client.Id}";
-
-        var response = await _httpClient.GetAsync(rolesUrl);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var result = await _keycloakServiceErrorHandler.ExtractErrorFromResponse(response);
-            return Result.Fail(result.Errors);
-        }
-
-        var jsonResponse = await response.Content.ReadAsStringAsync();
-
-        var roles = JsonConvert.DeserializeObject<HashSet<RoleMappingDTO>>(jsonResponse);
-
-        ThrowHelper.ThrowIfNull(roles);
-
-        return roles;
-    }
-
-    private async Task<Result<bool>> AddUserToGroupByNameAsync(string userId, string groupName)
-    {
-        var groupId = await GetGroupIdByNameAsync(groupName);
-
-        if (groupId.IsFailure)
-        {
-            return Result.Fail(groupId.Errors);
-        }
-
-        await AddUserToGroupAsync(userId, groupId.Value);
-
-        return true;
-    }
-
-    private async Task AddUserToGroupAsync(string userId, string groupId)
-    {
-        var tokenResponse = await GetAdminTokenAsync();
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            tokenResponse.AccessToken
-        );
-
-        var addGroupUrl =
-            $"{_endpointAdminBase}/users/{userId}/groups/{groupId}";
-
-        var response = await _httpClient.PutAsync(addGroupUrl, null);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new BadRequestException(
-                $"Failed to add user to group: {response.StatusCode}, {error}"
-            );
-        }
-    }
-
-    public async Task AddGroupRoleToUserAsync(string userId, string groupId, string roleName)
-    {
-        var roles = await GetRolesByGroupIdAsync(groupId);
-
-        var role = roles.FirstOrDefault(r =>
-            r.Name.Equals(roleName, StringComparison.OrdinalIgnoreCase)
-        );
-
-        if (role == null)
-        {
-            throw new BadRequestException($"Role '{roleName}' not found in group '{groupId}'");
-        }
-
-        await AddRoleToUserAsync(userId, role);
-    }
-
-    private async Task AddRoleToUserAsync(string userId, RoleMappingDTO role)
-    {
-        var tokenResponse = await GetAdminTokenAsync();
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            tokenResponse.AccessToken
-        );
-
-        var addRoleUrl =
-            $"{_endpointAdminBase}/users/{userId}/role-mappings/clients/{role.ContainerId}";
-        var content = new StringContent(
-            JsonConvert.SerializeObject(new[] { new { id = role.Id, name = role.Name } }),
-            Encoding.UTF8,
-            "application/json"
-        );
-
-        var response = await _httpClient.PostAsync(addRoleUrl, content);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new BadRequestException(
-                $"Failed to add role to user: {response.StatusCode}, {error}"
-            );
-        }
-    }
-
     public async Task UpdateUserAsync(User user, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

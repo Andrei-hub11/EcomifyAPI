@@ -49,8 +49,13 @@ public static class ServiceCollectionExtensions
     private static IServiceCollection AddPersistence(this IServiceCollection services)
     {
         services.AddSingleton<DapperContext>();
+
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
+
         services.AddScoped<IEmailSender, EmailSender>();
         services.AddScoped<IUserContext, UserContexts>();
 

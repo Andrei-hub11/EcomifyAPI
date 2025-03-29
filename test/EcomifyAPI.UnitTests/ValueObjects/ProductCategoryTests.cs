@@ -1,3 +1,5 @@
+using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Domain.Exceptions;
 using EcomifyAPI.UnitTests.Builders;
 
 using Shouldly;
@@ -28,15 +30,17 @@ public class ProductCategoryTests
     public void Create_ShouldFail_WhenProductIdIsEmpty()
     {
         // Arrange
-        Should.Throw<ArgumentException>(() => _builder.WithProductId(Guid.Empty).Build())
-        .Message.ShouldBe("ProductId is required (Parameter 'productId')");
+        Should.Throw<DomainException>(() => _builder.WithProductId(Guid.Empty).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_PRODUCT_ID_REQUIRED"
+        && e.Description == "ProductId is required" && e.ErrorType == ErrorType.Validation);
     }
 
     [Fact]
     public void Create_ShouldFail_WhenCategoryIdIsEmpty()
     {
         // Arrange
-        Should.Throw<ArgumentException>(() => _builder.WithCategoryId(Guid.Empty).Build())
-        .Message.ShouldBe("CategoryId is required (Parameter 'categoryId')");
+        Should.Throw<DomainException>(() => _builder.WithCategoryId(Guid.Empty).Build())
+        .Errors.ShouldContain(e => e.Code == "ERR_CATEGORY_ID_REQUIRED"
+        && e.Description == "CategoryId is required" && e.ErrorType == ErrorType.Validation);
     }
 }

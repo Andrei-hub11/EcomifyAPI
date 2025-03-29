@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 
 using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Domain.Exceptions;
 
 namespace EcomifyAPI.Domain.ValueObjects;
 
@@ -18,7 +19,7 @@ public sealed class OrderItem
 
         if (errors.Count != 0)
         {
-            throw new ArgumentException(string.Join(", ", errors.Select(e => e.Description)));
+            throw new DomainException(errors);
         }
 
         Id = id;
@@ -43,12 +44,12 @@ public sealed class OrderItem
 
         if (quantity <= 0)
         {
-            errors.Add(ValidationError.Create("Quantity must be greater than 0", "ERR_QUANTITY_MUST_BE_GREATER_THAN_0", "Quantity"));
+            errors.Add(ValidationError.Create("Quantity must be greater than 0", "ERR_QTY_GT_0", "Quantity"));
         }
 
         if (unitPrice.Amount <= 0)
         {
-            errors.Add(ValidationError.Create("UnitPrice must be greater than 0", "ERR_UNIT_PRICE_MUST_BE_GREATER_THAN_0", "UnitPrice"));
+            errors.Add(ValidationError.Create("UnitPrice must be greater than 0", "ERR_UPRICE_GT_0", "UnitPrice"));
         }
 
         return errors.AsReadOnly();
@@ -58,7 +59,7 @@ public sealed class OrderItem
     {
         if (quantity <= 0)
         {
-            throw new ArgumentException("Quantity must be greater than 0", nameof(quantity));
+            throw new DomainException(Error.Validation("Quantity must be greater than 0", "ERR_QTY_GT_0", "Quantity"));
         }
 
         Quantity = quantity;

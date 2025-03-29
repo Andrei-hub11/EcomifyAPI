@@ -5,7 +5,9 @@ namespace EcomifyAPI.Contracts.Request;
 public sealed record CreateProductRequestDTO(
 string Name,
 string Description,
-decimal Price, int Stock,
+decimal Price,
+string CurrencyCode,
+int Stock,
 string ImageUrl,
 ProductStatusEnum Status,
-IReadOnlySet<Guid> Categories);
+HashSet<Guid> Categories);

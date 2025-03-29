@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 
 using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Domain.Exceptions;
 
 namespace EcomifyAPI.Domain.ValueObjects;
 
@@ -20,7 +21,7 @@ public readonly record struct Address
 
         if (errors.Count != 0)
         {
-            throw new ArgumentException(string.Join(", ", errors.Select(e => e.Description)));
+            throw new DomainException(errors);
         }
 
         Street = street;
@@ -43,7 +44,7 @@ public readonly record struct Address
 
         if (number <= 0)
         {
-            errors.Add(ValidationError.Create("Number must be greater than 0", "ERR_NUMBER_MUST_BE_GREATER_THAN_0", "Number"));
+            errors.Add(ValidationError.Create("Number must be greater than 0", "ERR_NUMBER_GT_0", "Number"));
         }
 
         if (string.IsNullOrWhiteSpace(city))

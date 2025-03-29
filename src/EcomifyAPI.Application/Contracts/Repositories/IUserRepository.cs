@@ -6,7 +6,7 @@ namespace EcomifyAPI.Application.Contracts.Repositories;
 public interface IUserRepository : IRepository
 {
     Task<ApplicationUserMapping?> GetUserByIdAsync(
-        Guid userId,
+        string userId,
         CancellationToken cancellationToken
     );
     Task<ApplicationUserMapping?> GetUserByEmailAsync(

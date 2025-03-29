@@ -17,14 +17,30 @@ public sealed class OrderService : IOrderService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IOrderRepository _orderRepository;
     private readonly IProductService _productService;
+    private readonly IAccountService _accountService;
     private readonly ILoggerHelper<OrderService> _logger;
 
-    public OrderService(IUnitOfWork unitOfWork, IProductService productService, ILoggerHelper<OrderService> logger)
+    public OrderService(IUnitOfWork unitOfWork, IProductService productService, IAccountService accountService, ILoggerHelper<OrderService> logger)
     {
         _unitOfWork = unitOfWork;
         _orderRepository = unitOfWork.GetRepository<IOrderRepository>();
         _productService = productService;
+        _accountService = accountService;
         _logger = logger;
+    }
+
+    public async Task<Result<IReadOnlyList<OrderResponseDTO>>> GetOrdersAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var orders = await _orderRepository.GetOrdersAsync(cancellationToken);
+
+            return Result.Ok(orders.ToResponseDTO());
+        }
+        catch (Exception)
+        {
+            throw;
+        }
     }
 
     public async Task<Result<OrderResponseDTO>> GetOrderByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -50,6 +66,13 @@ public sealed class OrderService : IOrderService
     {
         try
         {
+            var user = await _accountService.GetUserByIdAsync(request.UserId, cancellationToken);
+
+            if (user.IsFailure)
+            {
+                return Result.Fail(user.Errors);
+            }
+
             var order = Order.Create(Guid.NewGuid(),
             request.UserId, DateTime.UtcNow,
             request.Status,
@@ -109,6 +132,30 @@ public sealed class OrderService : IOrderService
             {
                 await _orderRepository.CreateOrderItemAsync(item, orderId, cancellationToken);
             }
+
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return true;
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<Result<bool>> DeleteOrderAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var order = await _orderRepository.GetOrderByIdAsync(id, cancellationToken);
+
+            if (order is null)
+            {
+                return Result.Fail(OrderErrorFactory.OrderNotFound(id));
+            }
+
+            await _orderRepository.DeleteOrderAsync(id, cancellationToken);
 
             await _unitOfWork.CommitAsync(cancellationToken);
 

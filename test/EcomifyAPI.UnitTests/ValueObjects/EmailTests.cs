@@ -1,3 +1,4 @@
+using EcomifyAPI.Domain.Exceptions;
 using EcomifyAPI.Domain.ValueObjects;
 
 using Shouldly;
@@ -20,17 +21,18 @@ public class EmailTests
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    [InlineData("   ")]
-    [InlineData("notanemail")]
-    [InlineData("missing@domain")]
-    [InlineData("@nodomain.com")]
-    public void Create_ShouldThrow_WhenInvalidEmailProvided(string? email)
+    [InlineData("", "Email cannot be empty")]
+    [InlineData(null, "Email cannot be empty")]
+    [InlineData("   ", "Email cannot be empty")]
+    [InlineData("notanemail", "Invalid email format")]
+    [InlineData("missing@domain", "Invalid email format")]
+    [InlineData("@nodomain.com", "Invalid email format")]
+    public void Create_ShouldThrow_WhenInvalidEmailProvided(string? email, string errorMessage)
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() =>
-            new Email(email));
+        Should.Throw<DomainException>(() =>
+            new Email(email!))
+        .Errors.ShouldContain(e => e.Description == errorMessage);
     }
 
     [Fact]

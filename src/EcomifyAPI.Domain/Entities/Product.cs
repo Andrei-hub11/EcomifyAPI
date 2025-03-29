@@ -9,7 +9,7 @@ using EcomifyAPI.Domain.ValueObjects;
 
 public sealed class Product
 {
-    private readonly List<ProductCategory> _categories = [];
+    private readonly List<ProductCategory> _productCategories = [];
 
     public Guid Id { get; private set; }
     public string Name { get; private set; } = string.Empty;
@@ -18,7 +18,7 @@ public sealed class Product
     public int Stock { get; private set; }
     public string ImageUrl { get; private set; } = string.Empty;
     public ProductStatusEnum Status { get; private set; }
-    public IReadOnlyList<ProductCategory> Categories => _categories.AsReadOnly();
+    public IReadOnlyList<ProductCategory> ProductCategories => _productCategories.AsReadOnly();
 
     private Product(Guid id, string name, string description, Currency price, int stock, string imageUrl, ProductStatusEnum status)
     {
@@ -31,7 +31,15 @@ public sealed class Product
         Status = status;
     }
 
-    public static Result<Product> Create(Guid id, string name, string description, decimal price, int stock, string imageUrl, ProductStatusEnum status)
+    public static Result<Product> Create(
+    Guid id,
+    string name,
+    string description,
+    decimal price,
+    string currencyCode,
+    int stock,
+    string imageUrl,
+    ProductStatusEnum status)
     {
         var errors = ValidateProduct(id, name, description, price, stock, imageUrl, status);
 
@@ -40,7 +48,7 @@ public sealed class Product
             return Result.Fail(errors);
         }
 
-        return new Product(id, name, description, new Currency("BRL", price), stock, imageUrl, status);
+        return new Product(id, name, description, new Currency(currencyCode, price), stock, imageUrl, status);
     }
 
     private static ReadOnlyCollection<ValidationError> ValidateProduct(Guid id, string name, string description, decimal price, int stock, string imageUrl, ProductStatusEnum status)
@@ -147,12 +155,12 @@ public sealed class Product
             throw new ArgumentException("Categories must be at least one");
         }
 
-        if (Categories.Any(c => categories.Any(c2 => c2.CategoryId == c.CategoryId)))
+        if (ProductCategories.Any(c => categories.Any(c2 => c2.CategoryId == c.CategoryId)))
         {
             throw new ArgumentException("Categories must be unique");
         }
 
-        _categories.AddRange(categories);
+        _productCategories.AddRange(categories);
     }
 
 }

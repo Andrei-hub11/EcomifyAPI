@@ -6,6 +6,6 @@ CREATE TABLE address (
     state VARCHAR(255) NOT NULL,
     zip_code VARCHAR(255) NOT NULL,
     country VARCHAR(255) NOT NULL,
-    complement VARCHAR(255) NOT NULL,
+    complement VARCHAR(255) NOT NULL
 );
 
