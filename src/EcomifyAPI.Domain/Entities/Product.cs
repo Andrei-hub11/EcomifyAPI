@@ -4,7 +4,7 @@ using System.Collections.ObjectModel;
 
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Common.Utils.ResultError;
-using EcomifyAPI.Contracts.Enums;
+using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
 
 public sealed class Product
@@ -14,13 +14,13 @@ public sealed class Product
     public Guid Id { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
-    public Currency Price { get; private set; }
+    public Money Price { get; private set; }
     public int Stock { get; private set; }
     public string ImageUrl { get; private set; } = string.Empty;
     public ProductStatusEnum Status { get; private set; }
     public IReadOnlyList<ProductCategory> ProductCategories => _productCategories.AsReadOnly();
 
-    private Product(Guid id, string name, string description, Currency price, int stock, string imageUrl, ProductStatusEnum status)
+    private Product(Guid id, string name, string description, Money price, int stock, string imageUrl, ProductStatusEnum status)
     {
         Id = id;
         Name = name;
@@ -32,30 +32,59 @@ public sealed class Product
     }
 
     public static Result<Product> Create(
-    Guid id,
-    string name,
-    string description,
-    decimal price,
-    string currencyCode,
-    int stock,
-    string imageUrl,
-    ProductStatusEnum status)
+        string name,
+        string description,
+        decimal price,
+        string currencyCode,
+        int stock,
+        string imageUrl,
+        ProductStatusEnum status,
+        Guid? id = null
+        )
     {
-        var errors = ValidateProduct(id, name, description, price, stock, imageUrl, status);
+        var errors = ValidateProduct(name, description, price, stock, imageUrl, status, id);
 
         if (errors.Count != 0)
         {
             return Result.Fail(errors);
         }
 
-        return new Product(id, name, description, new Currency(currencyCode, price), stock, imageUrl, status);
+        return new Product(id ?? Guid.Empty, name, description, new Money(currencyCode, price), stock, imageUrl, status);
     }
 
-    private static ReadOnlyCollection<ValidationError> ValidateProduct(Guid id, string name, string description, decimal price, int stock, string imageUrl, ProductStatusEnum status)
+    public static Result<Product> From(
+        Guid id,
+        string name,
+        string description,
+        decimal price,
+        string currencyCode,
+        int stock,
+        string imageUrl,
+        ProductStatusEnum status)
+    {
+        var errors = ValidateProduct(name, description, price, stock, imageUrl, status, id);
+
+        if (errors.Count != 0)
+        {
+            return Result.Fail(errors);
+        }
+
+        return new Product(id, name, description, new Money(currencyCode, price), stock, imageUrl, status);
+    }
+
+    private static ReadOnlyCollection<ValidationError> ValidateProduct(
+        string name,
+        string description,
+        decimal price,
+        int stock,
+        string imageUrl,
+        ProductStatusEnum status,
+        Guid? id = null
+        )
     {
         var errors = new List<ValidationError>();
 
-        if (id == Guid.Empty)
+        if (id is not null && id == Guid.Empty)
         {
             errors.Add(ValidationError.Create("Id is required", "ERR_ID_REQUIRED", "Id"));
         }
@@ -132,7 +161,7 @@ public sealed class Product
             throw new ArgumentException("CurrencyCode is required");
         }
 
-        Price = new Currency(currencyCode, price);
+        Price = new Money(currencyCode, price);
     }
 
     public void UpdateStatus(ProductStatusEnum status)

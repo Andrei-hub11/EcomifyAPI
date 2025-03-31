@@ -22,7 +22,7 @@ public class OrderItemTests
         // Arrange
         var orderItem = _builder.
         WithQuantity(1)
-        .WithUnitPrice(new Currency("USD", 100)).Build();
+        .WithUnitPrice(new Money("USD", 100)).Build();
 
         // Assert
         orderItem.Id.ShouldNotBe(Guid.Empty);
@@ -62,7 +62,7 @@ public class OrderItemTests
     public void Create_ShouldFail_WhenUnitPriceIsZero()
     {
         // Arrange
-        Should.Throw<DomainException>(() => _builder.WithUnitPrice(new Currency("USD", 0)).Build())
+        Should.Throw<DomainException>(() => _builder.WithUnitPrice(new Money("USD", 0)).Build())
         .Errors.ShouldContain(e => e.Code == "ERR_AMOUNT_GT_0"
         && e.Description == "Amount must be greater than 0" && e.ErrorType == ErrorType.Validation);
     }
@@ -80,7 +80,7 @@ public class OrderItemTests
     public void Create_ShouldFail_WhenUnitPriceIsNegative()
     {
         // Arrange
-        Should.Throw<DomainException>(() => _builder.WithUnitPrice(new Currency("USD", -1)).Build())
+        Should.Throw<DomainException>(() => _builder.WithUnitPrice(new Money("USD", -1)).Build())
         .Errors.ShouldContain(e => e.Code == "ERR_AMOUNT_GT_0"
         && e.Description == "Amount must be greater than 0" && e.ErrorType == ErrorType.Validation);
     }
@@ -91,7 +91,7 @@ public class OrderItemTests
         // Arrange
         var orderItem = _builder.
         WithQuantity(1)
-        .WithUnitPrice(new Currency("USD", 100)).Build();
+        .WithUnitPrice(new Money("USD", 100)).Build();
 
         // Act
         orderItem.UpdateQuantity(2);
@@ -106,7 +106,7 @@ public class OrderItemTests
         // Arrange
         var orderItem = _builder.
         WithQuantity(1)
-        .WithUnitPrice(new Currency("USD", 100)).Build();
+        .WithUnitPrice(new Money("USD", 100)).Build();
 
         // Act
         Should.Throw<DomainException>(() => orderItem.UpdateQuantity(0))

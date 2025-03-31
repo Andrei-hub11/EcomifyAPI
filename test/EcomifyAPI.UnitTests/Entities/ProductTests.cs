@@ -1,5 +1,5 @@
 using EcomifyAPI.Common.Utils.ResultError;
-using EcomifyAPI.Contracts.Enums;
+using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.Exceptions;
 using EcomifyAPI.UnitTests.Builders;
 

@@ -6,8 +6,8 @@ namespace EcomifyAPI.Application.Contracts.Services;
 
 public interface IProductService
 {
-    Task<Result<IReadOnlyList<ProductResponseDTO>>> GetProductsAsync(CancellationToken cancellationToken = default);
-    Task<Result<ProductResponseDTO>> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<Result<bool>> CreateProductAsync(CreateProductRequestDTO request, CancellationToken cancellationToken = default);
-    Task<Result<bool>> UpdateProductAsync(UpdateProductRequestDTO request, CancellationToken cancellationToken = default);
+    Task<Result<IReadOnlyList<ProductResponseDTO>>> GetAsync(CancellationToken cancellationToken = default);
+    Task<Result<ProductResponseDTO>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Result<bool>> CreateAsync(CreateProductRequestDTO request, CancellationToken cancellationToken = default);
+    Task<Result<bool>> UpdateAsync(UpdateProductRequestDTO request, CancellationToken cancellationToken = default);
 }

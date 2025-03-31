@@ -25,7 +25,7 @@ public sealed class ProductService : IProductService
         _logger = logger;
     }
 
-    public async Task<Result<IReadOnlyList<ProductResponseDTO>>> GetProductsAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<ProductResponseDTO>>> GetAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -38,7 +38,7 @@ public sealed class ProductService : IProductService
             throw;
         }
     }
-    public async Task<Result<ProductResponseDTO>> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Result<ProductResponseDTO>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -62,19 +62,18 @@ public sealed class ProductService : IProductService
         }
     }
 
-    public async Task<Result<bool>> CreateProductAsync(CreateProductRequestDTO request, CancellationToken cancellationToken = default)
+    public async Task<Result<bool>> CreateAsync(CreateProductRequestDTO request, CancellationToken cancellationToken = default)
     {
         try
         {
             var product = Product.Create(
-            Guid.NewGuid(),
             request.Name,
             request.Description,
             request.Price,
             request.CurrencyCode,
             request.Stock,
             request.ImageUrl,
-            request.Status);
+            request.Status.ToProductStatusDomain());
 
             if (product.IsFailure)
             {
@@ -131,7 +130,7 @@ public sealed class ProductService : IProductService
         }
     }
 
-    public async Task<Result<bool>> UpdateProductAsync(UpdateProductRequestDTO request, CancellationToken cancellationToken = default)
+    public async Task<Result<bool>> UpdateAsync(UpdateProductRequestDTO request, CancellationToken cancellationToken = default)
     {
         try
         {

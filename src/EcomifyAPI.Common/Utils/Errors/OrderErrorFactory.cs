@@ -14,4 +14,14 @@ public static class OrderErrorFactory
     {
         return Error.NotFound($"Order with id = '{id}' was not found.", "ERR_ORDER_NOT_FOUND");
     }
+
+    /// <summary>
+    /// Creates a conflict error for a order that is already completed.
+    /// </summary>
+    /// <param name="id">The order identifier.</param>
+    /// <returns>An <see cref="Error"/> instance representing a order already completed error.</returns>
+    public static Error OrderAlreadyCompleted(Guid id)
+    {
+        return Error.Conflict($"Order with id = '{id}' is already completed.", "ERR_ORDER_COMPLETED");
+    }
 }

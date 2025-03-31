@@ -38,7 +38,7 @@ public class AccountController : ControllerBase
             .Request.Headers.Authorization.ToString()
             .Replace("Bearer ", "");
 
-        var result = await _accountService.GetUserAsync(accessToken, cancellationToken);
+        var result = await _accountService.GetAsync(accessToken, cancellationToken);
 
         return result.Match(
             onSuccess: (user) => Ok(user),
@@ -81,7 +81,7 @@ public class AccountController : ControllerBase
         CancellationToken cancellationToken
     )
     {
-        var result = await _accountService.RegisterUserAsync(request, cancellationToken);
+        var result = await _accountService.RegisterAsync(request, cancellationToken);
 
 
         return result.Match(
@@ -106,7 +106,7 @@ public class AccountController : ControllerBase
         CancellationToken cancellationToken
     )
     {
-        var result = await _accountService.LoginUserAsync(request, cancellationToken);
+        var result = await _accountService.LoginAsync(request, cancellationToken);
 
         return result.Match(
             onSuccess: (authResponse) => Ok(authResponse),
@@ -191,7 +191,7 @@ public class AccountController : ControllerBase
         CancellationToken cancellationToken
     )
     {
-        var result = await _accountService.UpdateUserPasswordAsync(request, cancellationToken);
+        var result = await _accountService.UpdatePasswordAsync(request, cancellationToken);
 
         return result.Match(
             onSuccess: (isSuccess) => Ok(isSuccess),

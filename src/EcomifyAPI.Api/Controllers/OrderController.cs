@@ -30,7 +30,7 @@ public class OrderController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetOrders()
     {
-        var result = await _orderService.GetOrdersAsync();
+        var result = await _orderService.GetAsync();
 
         return result.Match(
             onSuccess: (orders) => Ok(orders),
@@ -50,7 +50,7 @@ public class OrderController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetOrder(Guid id)
     {
-        var result = await _orderService.GetOrderByIdAsync(id);
+        var result = await _orderService.GetByIdAsync(id);
 
         return result.Match(
             onSuccess: (order) => Ok(order),

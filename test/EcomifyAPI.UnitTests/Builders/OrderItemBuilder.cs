@@ -7,7 +7,7 @@ public class OrderItemBuilder
     private Guid _id = Guid.NewGuid();
     private Guid _productId = Guid.NewGuid();
     private int _quantity = 1;
-    private Currency _unitPrice = new("USD", 100);
+    private Money _unitPrice = new("USD", 100);
 
 
     public OrderItemBuilder WithId(Guid id)
@@ -28,7 +28,7 @@ public class OrderItemBuilder
         return this;
     }
 
-    public OrderItemBuilder WithUnitPrice(Currency unitPrice)
+    public OrderItemBuilder WithUnitPrice(Money unitPrice)
     {
         _unitPrice = unitPrice;
         return this;

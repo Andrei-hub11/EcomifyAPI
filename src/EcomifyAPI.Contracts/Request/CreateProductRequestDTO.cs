@@ -9,5 +9,5 @@ decimal Price,
 string CurrencyCode,
 int Stock,
 string ImageUrl,
-ProductStatusEnum Status,
+ProductStatusDTO Status,
 HashSet<Guid> Categories);

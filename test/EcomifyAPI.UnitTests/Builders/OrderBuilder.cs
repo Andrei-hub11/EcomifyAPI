@@ -1,13 +1,13 @@
 using EcomifyAPI.Common.Utils.Result;
-using EcomifyAPI.Contracts.Enums;
 using EcomifyAPI.Domain.Entities;
+using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
 
 namespace EcomifyAPI.UnitTests.Builders;
 
 public class OrderBuilder
 {
-    private Guid _id = Guid.NewGuid();
+    private Guid? _id = Guid.NewGuid();
     private string _userId = "user123";
     private DateTime _orderDate = DateTime.UtcNow;
     private OrderStatusEnum _status = OrderStatusEnum.Created;
@@ -33,7 +33,7 @@ public class OrderBuilder
         _billingAddress = addressResult;
     }
 
-    public OrderBuilder WithId(Guid id)
+    public OrderBuilder WithId(Guid? id)
     {
         _id = id;
         return this;
@@ -72,13 +72,14 @@ public class OrderBuilder
     public Result<Order> Build()
     {
         return Order.Create(
-            _id,
             _userId,
             _orderDate,
             _status,
             _createdAt,
             _completedAt,
             _shippingAddress,
-            _billingAddress);
+            _billingAddress,
+            _id
+            );
     }
 }

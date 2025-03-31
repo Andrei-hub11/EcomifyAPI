@@ -53,7 +53,7 @@ public class AccountService : IAccountService
         _logger = logger;
     }
 
-    public async Task<Result<UserResponseDTO>> GetUserAsync(
+    public async Task<Result<UserResponseDTO>> GetAsync(
         string accessToken,
         CancellationToken cancellationToken
     )
@@ -82,7 +82,7 @@ public class AccountService : IAccountService
         }
     }
 
-    public async Task<Result<UserResponseDTO>> GetUserByIdAsync(
+    public async Task<Result<UserResponseDTO>> GetByIdAsync(
         string userId,
         CancellationToken cancellationToken
     )
@@ -97,7 +97,7 @@ public class AccountService : IAccountService
         return user.ToResponseDTO();
     }
 
-    public async Task<Result<AuthResponseDTO>> RegisterUserAsync(
+    public async Task<Result<AuthResponseDTO>> RegisterAsync(
         UserRegisterRequestDTO request,
         CancellationToken cancellationToken
     )
@@ -152,7 +152,6 @@ public class AccountService : IAccountService
             var (user, _, _, roles) = authResult.Value;
 
             var newUser = User.Create(
-                id: Guid.NewGuid(),
                 keycloakId: user.Id,
                 name: user.UserName,
                 email: user.Email,
@@ -162,9 +161,9 @@ public class AccountService : IAccountService
 
             if (newUser.IsFailure)
             {
-                await _accountServiceErrorHandler.HandleRegistrationFailureAsync(
-                    user,
-                    user.ProfileImagePath
+                await _accountServiceErrorHandler.HandleUnexpectedAuthenticationExceptionAsync(
+                    user.Email,
+                    profileImage?.ProfileImagePath
                 );
 
                 return Result.Fail(newUser.Errors);
@@ -180,7 +179,7 @@ public class AccountService : IAccountService
         {
             if (!string.IsNullOrWhiteSpace(request.Email))
             {
-                await _accountServiceErrorHandler.HandleUnexpectedRegistrationExceptionAsync(
+                await _accountServiceErrorHandler.HandleUnexpectedAuthenticationExceptionAsync(
                     request.Email,
                     profileImage?.ProfileImagePath
                 );
@@ -192,7 +191,7 @@ public class AccountService : IAccountService
         }
     }
 
-    public async Task<Result<AuthResponseDTO>> LoginUserAsync(
+    public async Task<Result<AuthResponseDTO>> LoginAsync(
         UserLoginRequestDTO request,
         CancellationToken cancellationToken
     )
@@ -209,7 +208,14 @@ public class AccountService : IAccountService
                 return Result.Fail(UserErrorFactory.UserNotFoundByEmail(request.Email));
             }
 
-            var user = User.From(userExisting);
+            var user = User.From(
+                userExisting.Id,
+                userExisting.KeycloakId,
+                userExisting.UserName,
+                userExisting.Email,
+                userExisting.ProfileImagePath,
+                userExisting.Roles.ToHashSet()
+            );
 
             if (user.IsFailure)
             {
@@ -255,7 +261,14 @@ public class AccountService : IAccountService
                 return Result.Fail(UserErrorFactory.UserNotFoundByEmail(request.Email));
             }
 
-            var user = User.From(applicationUser);
+            var user = User.From(
+                applicationUser.Id,
+                applicationUser.KeycloakId,
+                applicationUser.UserName,
+                applicationUser.Email,
+                applicationUser.ProfileImagePath,
+                applicationUser.Roles.ToHashSet()
+            );
 
             if (user.IsFailure)
             {
@@ -439,7 +452,7 @@ public class AccountService : IAccountService
     //    }
     //}
 
-    public async Task<Result<bool>> UpdateUserPasswordAsync(
+    public async Task<Result<bool>> UpdatePasswordAsync(
         UpdatePasswordRequestDTO request,
         CancellationToken cancellationToken
     )
@@ -468,7 +481,14 @@ public class AccountService : IAccountService
                 return Result.Fail(UserErrorFactory.UserNotFoundById(request.UserId));
             }
 
-            var user = User.From(userExisting);
+            var user = User.From(
+                userExisting.Id,
+                userExisting.KeycloakId,
+                userExisting.UserName,
+                userExisting.Email,
+                userExisting.ProfileImagePath,
+                userExisting.Roles.ToHashSet()
+            );
 
             if (user.IsFailure)
             {

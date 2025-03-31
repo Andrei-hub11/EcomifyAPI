@@ -29,7 +29,7 @@ public class OrderRepository : IOrderRepository
         _transaction = transaction;
     }
 
-    public async Task<IEnumerable<OrderMapping>> GetOrdersAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<OrderMapping>> GetAsync(CancellationToken cancellationToken = default)
     {
         const string query = @"
         SELECT 
@@ -120,7 +120,7 @@ public class OrderRepository : IOrderRepository
         return orders;
     }
 
-    public async Task<OrderMapping?> GetOrderByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<OrderMapping?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -216,7 +216,7 @@ public class OrderRepository : IOrderRepository
         return orders.FirstOrDefault();
     }
 
-    public async Task<Guid> CreateOrderAsync(Order order, string currencyCode, CancellationToken cancellationToken = default)
+    public async Task<Guid> CreateAsync(Order order, string currencyCode, CancellationToken cancellationToken = default)
     {
         const string query = @"
             INSERT INTO orders (id, user_keycloak_id, total_amount, currency_code, 
@@ -291,7 +291,7 @@ public class OrderRepository : IOrderRepository
         return result > 0;
     }
 
-    public async Task<bool> DeleteOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         const string query = @"
             DELETE FROM orders WHERE id = @Id

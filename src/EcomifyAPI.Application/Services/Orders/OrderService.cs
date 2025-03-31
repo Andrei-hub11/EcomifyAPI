@@ -29,11 +29,11 @@ public sealed class OrderService : IOrderService
         _logger = logger;
     }
 
-    public async Task<Result<IReadOnlyList<OrderResponseDTO>>> GetOrdersAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<OrderResponseDTO>>> GetAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            var orders = await _orderRepository.GetOrdersAsync(cancellationToken);
+            var orders = await _orderRepository.GetAsync(cancellationToken);
 
             return Result.Ok(orders.ToResponseDTO());
         }
@@ -43,11 +43,11 @@ public sealed class OrderService : IOrderService
         }
     }
 
-    public async Task<Result<OrderResponseDTO>> GetOrderByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Result<OrderResponseDTO>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         try
         {
-            var order = await _orderRepository.GetOrderByIdAsync(id, cancellationToken);
+            var order = await _orderRepository.GetByIdAsync(id, cancellationToken);
 
             if (order is null)
             {
@@ -66,16 +66,17 @@ public sealed class OrderService : IOrderService
     {
         try
         {
-            var user = await _accountService.GetUserByIdAsync(request.UserId, cancellationToken);
+            var user = await _accountService.GetByIdAsync(request.UserId, cancellationToken);
 
             if (user.IsFailure)
             {
                 return Result.Fail(user.Errors);
             }
 
-            var order = Order.Create(Guid.NewGuid(),
-            request.UserId, DateTime.UtcNow,
-            request.Status,
+            var order = Order.Create(
+            request.UserId,
+            DateTime.UtcNow,
+            request.Status.ToOrderStatusDomain(),
             DateTime.UtcNow,
             DateTime.UtcNow,
             new Address(request.ShippingAddress.Street,
@@ -102,7 +103,7 @@ public sealed class OrderService : IOrderService
 
             foreach (var item in request.Items)
             {
-                var productDTO = await _productService.GetProductByIdAsync(item.ProductId, cancellationToken);
+                var productDTO = await _productService.GetByIdAsync(item.ProductId, cancellationToken);
 
                 if (productDTO.IsFailure)
                 {
@@ -116,7 +117,7 @@ public sealed class OrderService : IOrderService
                     return Result.Fail($"Insufficient stock for product with id = '{item.ProductId}'");
                 }
 
-                order.Value.AddItem(product, item.Quantity, new Currency(item.UnitPrice.Code, item.UnitPrice.Amount));
+                order.Value.AddItem(product, item.Quantity, new Money(item.UnitPrice.Code, item.UnitPrice.Amount));
 
                 if (!product.DecrementStock(item.Quantity))
                 {
@@ -126,7 +127,7 @@ public sealed class OrderService : IOrderService
 
             var currencyCode = order.Value.TotalAmount.Code;
 
-            var orderId = await _orderRepository.CreateOrderAsync(order.Value, currencyCode, cancellationToken);
+            var orderId = await _orderRepository.CreateAsync(order.Value, currencyCode, cancellationToken);
 
             foreach (var item in order.Value.OrderItems)
             {
@@ -148,14 +149,14 @@ public sealed class OrderService : IOrderService
     {
         try
         {
-            var order = await _orderRepository.GetOrderByIdAsync(id, cancellationToken);
+            var order = await _orderRepository.GetByIdAsync(id, cancellationToken);
 
             if (order is null)
             {
                 return Result.Fail(OrderErrorFactory.OrderNotFound(id));
             }
 
-            await _orderRepository.DeleteOrderAsync(id, cancellationToken);
+            await _orderRepository.DeleteAsync(id, cancellationToken);
 
             await _unitOfWork.CommitAsync(cancellationToken);
 

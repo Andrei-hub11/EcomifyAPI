@@ -29,7 +29,7 @@ public class ProductController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetProducts()
     {
-        var result = await _productService.GetProductsAsync();
+        var result = await _productService.GetAsync();
 
         return result.Match(
             onSuccess: (products) => Ok(products),
@@ -49,7 +49,7 @@ public class ProductController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetProduct(Guid id)
     {
-        var result = await _productService.GetProductByIdAsync(id);
+        var result = await _productService.GetByIdAsync(id);
 
         return result.Match(
             onSuccess: (product) => Ok(product),
@@ -60,7 +60,7 @@ public class ProductController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateProduct(CreateProductRequestDTO request)
     {
-        var result = await _productService.CreateProductAsync(request);
+        var result = await _productService.CreateAsync(request);
 
         return result.Match(
             onSuccess: (product) => Ok(product),

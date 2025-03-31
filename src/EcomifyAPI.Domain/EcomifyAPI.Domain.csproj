@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EcomifyAPI.Common\EcomifyAPI.Common.csproj" />
-    <ProjectReference Include="..\EcomifyAPI.Contracts\EcomifyAPI.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

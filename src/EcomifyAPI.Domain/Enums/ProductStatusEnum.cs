@@ -1,6 +1,6 @@
-namespace EcomifyAPI.Contracts.Enums;
+namespace EcomifyAPI.Domain.Enums;
 
-public enum ProductStatusDTO
+public enum ProductStatusEnum
 {
     Active = 1,
     Inactive = 2,

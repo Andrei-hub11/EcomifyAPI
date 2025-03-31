@@ -5,7 +5,7 @@ namespace EcomifyAPI.Contracts.Request;
 
 public sealed record CreateOrderRequestDTO(
     string UserId,
-    OrderStatusEnum Status,
+    OrderStatusDTO Status,
     AddressDTO ShippingAddress,
     AddressDTO BillingAddress,
     IReadOnlyList<OrderItemDTO> Items

@@ -2,7 +2,6 @@
 
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Common.Utils.ResultError;
-using EcomifyAPI.Contracts.DapperModels;
 using EcomifyAPI.Domain.ValueObjects;
 
 namespace EcomifyAPI.Domain.Entities;
@@ -26,10 +25,23 @@ public sealed class User
         Roles = roles;
     }
 
-    public static Result<User> Create(Guid id, string keycloakId, string name, string email,
+    public static Result<User> Create(string keycloakId, string name, string email,
+        string profileImagePath, IReadOnlySet<string> roles, Guid? id = null)
+    {
+        var errors = ValidateUser(keycloakId, name, email, roles, id);
+
+        if (errors.Count != 0)
+        {
+            return Result.Fail(errors);
+        }
+
+        return new User(id ?? Guid.Empty, keycloakId, name, email, profileImagePath, roles);
+    }
+
+    public static Result<User> From(Guid id, string keycloakId, string name, string email,
         string profileImagePath, IReadOnlySet<string> roles)
     {
-        var errors = ValidateUser(id, keycloakId, name, email, roles);
+        var errors = ValidateUser(keycloakId, name, email, roles, id);
 
         if (errors.Count != 0)
         {
@@ -39,27 +51,13 @@ public sealed class User
         return new User(id, keycloakId, name, email, profileImagePath, roles);
     }
 
-    public static Result<User> From(ApplicationUserMapping applicationUser)
-    {
-        var errors = ValidateUser(applicationUser.Id, applicationUser.KeycloakId, applicationUser.UserName, applicationUser.Email,
-            applicationUser.Roles.ToHashSet());
-
-        if (errors.Count != 0)
-        {
-            return Result.Fail(errors);
-        }
-
-        return new User(applicationUser.Id, applicationUser.KeycloakId, applicationUser.UserName, applicationUser.Email,
-            applicationUser.ProfileImagePath, applicationUser.Roles.ToHashSet());
-    }
-
-    private static ReadOnlyCollection<ValidationError> ValidateUser(Guid id, string keycloakId, string name, string email,
-         IReadOnlySet<string> roles)
+    private static ReadOnlyCollection<ValidationError> ValidateUser(string keycloakId, string name, string email,
+        IReadOnlySet<string> roles, Guid? id = null)
     {
         var errors = new List<ValidationError>();
         var isValidRole = new HashSet<string> { "Admin", "User", "Manager" };
 
-        if (id == Guid.Empty)
+        if (id is not null && id == Guid.Empty)
         {
             errors.Add(ValidationError.Create("Id cannot be empty", "ERR_ID_EMPTY", "Id"));
         }

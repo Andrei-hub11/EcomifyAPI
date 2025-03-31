@@ -1,12 +1,12 @@
 using EcomifyAPI.Common.Utils.Result;
-using EcomifyAPI.Contracts.Enums;
 using EcomifyAPI.Domain.Entities;
+using EcomifyAPI.Domain.Enums;
 
 namespace EcomifyAPI.UnitTests.Builders;
 
 public class ProductBuilder
 {
-    private Guid _id = Guid.NewGuid();
+    private Guid? _id = Guid.NewGuid();
     private string _name = "Test Product";
     private readonly string _description = "Test Description";
     private decimal _price = 100.00m;
@@ -54,13 +54,14 @@ public class ProductBuilder
     public Result<Product> Build()
     {
         return Product.Create(
-            _id,
             _name,
             _description,
             _price,
             _currencyCode,
             _stock,
             _imageUrl,
-            _status);
+            _status,
+            _id
+            );
     }
 }

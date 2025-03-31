@@ -1,6 +1,6 @@
-namespace EcomifyAPI.Contracts.Enums;
+namespace EcomifyAPI.Domain.Enums;
 
-public enum OrderStatusDTO
+public enum OrderStatusEnum
 {
     Created = 1,
     Pending = 2,

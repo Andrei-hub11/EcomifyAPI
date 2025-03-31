@@ -1,11 +1,42 @@
 using EcomifyAPI.Contracts.DapperModels;
+using EcomifyAPI.Contracts.Enums;
 using EcomifyAPI.Contracts.Models;
 using EcomifyAPI.Contracts.Response;
+using EcomifyAPI.Domain.Enums;
 
 namespace EcomifyAPI.Application.DTOMappers;
 
 public static class MappingExtensionsOrders
 {
+    public static OrderStatusEnum ToOrderStatusDomain(this OrderStatusDTO status)
+    {
+        return status switch
+        {
+            OrderStatusDTO.Created => OrderStatusEnum.Created,
+            OrderStatusDTO.Pending => OrderStatusEnum.Pending,
+            OrderStatusDTO.Processing => OrderStatusEnum.Processing,
+            OrderStatusDTO.Confirmed => OrderStatusEnum.Confirmed,
+            OrderStatusDTO.Shipped => OrderStatusEnum.Shipped,
+            OrderStatusDTO.Completed => OrderStatusEnum.Completed,
+            OrderStatusDTO.Cancelled => OrderStatusEnum.Cancelled,
+            _ => throw new ArgumentException("Invalid order status"),
+        };
+    }
+
+    public static OrderStatusDTO ToOrderStatusDTO(this OrderStatusEnum status)
+    {
+        return status switch
+        {
+            OrderStatusEnum.Created => OrderStatusDTO.Created,
+            OrderStatusEnum.Pending => OrderStatusDTO.Pending,
+            OrderStatusEnum.Processing => OrderStatusDTO.Processing,
+            OrderStatusEnum.Confirmed => OrderStatusDTO.Confirmed,
+            OrderStatusEnum.Shipped => OrderStatusDTO.Shipped,
+            OrderStatusEnum.Completed => OrderStatusDTO.Completed,
+            OrderStatusEnum.Cancelled => OrderStatusDTO.Cancelled,
+            _ => throw new ArgumentException("Invalid order status"),
+        };
+    }
 
     private static AddressDTO ToAddressDTO(this ShippingAddressMapping address)
     {

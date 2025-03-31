@@ -6,19 +6,19 @@ namespace EcomifyAPI.Application.Contracts.Services;
 
 public interface IAccountService
 {
-    Task<Result<UserResponseDTO>> GetUserAsync(
+    Task<Result<UserResponseDTO>> GetAsync(
         string accessToken,
         CancellationToken cancellationToken = default
     );
-    Task<Result<UserResponseDTO>> GetUserByIdAsync(
+    Task<Result<UserResponseDTO>> GetByIdAsync(
         string userId,
         CancellationToken cancellationToken = default
     );
-    Task<Result<AuthResponseDTO>> RegisterUserAsync(
+    Task<Result<AuthResponseDTO>> RegisterAsync(
         UserRegisterRequestDTO request,
         CancellationToken cancellationToken = default
     );
-    Task<Result<AuthResponseDTO>> LoginUserAsync(
+    Task<Result<AuthResponseDTO>> LoginAsync(
         UserLoginRequestDTO request,
         CancellationToken cancellationToken = default
     );
@@ -30,7 +30,7 @@ public interface IAccountService
         UpdateAccessTokenRequestDTO request,
         CancellationToken cancellationToken = default
     );
-    Task<Result<bool>> UpdateUserPasswordAsync(
+    Task<Result<bool>> UpdatePasswordAsync(
         UpdatePasswordRequestDTO request,
         CancellationToken cancellationToken = default
     );

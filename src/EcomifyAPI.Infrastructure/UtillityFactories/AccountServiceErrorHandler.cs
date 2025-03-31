@@ -2,7 +2,6 @@
 using EcomifyAPI.Application.Contracts.Services;
 using EcomifyAPI.Application.Contracts.UtillityFactories;
 using EcomifyAPI.Contracts.DapperModels;
-using EcomifyAPI.Contracts.Response;
 using EcomifyAPI.Domain.Entities;
 
 namespace EcomifyAPI.Infrastructure.UtillityFactories;
@@ -26,32 +25,7 @@ public class AccountServiceErrorHandler : IAccountServiceErrorHandler
     }
 
     /// <summary>
-    /// Handles the cleanup process when a user registration fails. 
-    /// Deletes the user from Keycloak and, if applicable, deletes the profile image.
-    /// </summary>
-    /// <param name="user">The user information associated with the failed registration.</param>
-    /// <param name="profileImagePath">The path of the profile image to delete, if applicable.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    public async Task HandleRegistrationFailureAsync(UserResponseDTO user, string? profileImagePath)
-    {
-        try
-        {
-            await _keycloakService.DeleteUserByIdAsync(user.Id);
-
-            if (!string.IsNullOrWhiteSpace(profileImagePath))
-            {
-                await _imagesService.DeleteProfileImageAsync(profileImagePath);
-            }
-        }
-        catch (Exception ex)
-        {
-            // Log any exceptions that occur during the cleanup process without interrupting the original flow
-            _logger.LogError(ex, $"An error occurred while cleaning up the user registration for user ID: {user.Id}");
-        }
-    }
-
-    /// <summary>
-    /// Handles the cleanup process when an unexpected exception occurs during user registration.
+    /// Handles the cleanup process when an unexpected exception occurs during user authentication.
     /// This method performs the following steps:
     /// <list type="bullet">
     ///     <item>
@@ -65,7 +39,7 @@ public class AccountServiceErrorHandler : IAccountServiceErrorHandler
     /// <param name="userEmail">The email address of the user to check for existence and delete if found.</param>
     /// <param name="profileImagePath">The path of the user's profile image to delete. If null or whitespace, no image is deleted.</param>
     /// <returns>A task that represents the asynchronous operation. The task does not return a value.</returns>
-    public async Task HandleUnexpectedRegistrationExceptionAsync(string userEmail, string? profileImagePath)
+    public async Task HandleUnexpectedAuthenticationExceptionAsync(string userEmail, string? profileImagePath)
     {
         try
         {
@@ -78,7 +52,8 @@ public class AccountServiceErrorHandler : IAccountServiceErrorHandler
 
             if (existingUserResult.IsFailure)
             {
-                throw new InvalidOperationException($"Failed to retrieve the user by email: {userEmail}");
+                _logger.LogWarning($"User with email {userEmail} not found in Keycloak. Cleanup might not be necessary.");
+                return;
             }
 
             // Delete the user from Keycloak by their ID
@@ -104,7 +79,14 @@ public class AccountServiceErrorHandler : IAccountServiceErrorHandler
 
             var existingUser = existingUserResult.Value;
 
-            var userDomain = User.From(user);
+            var userDomain = User.From(
+                user.Id,
+                user.KeycloakId,
+                user.UserName,
+                user.Email,
+                user.ProfileImagePath,
+                user.Roles.ToHashSet()
+            );
 
             if (userDomain.IsFailure)
             {

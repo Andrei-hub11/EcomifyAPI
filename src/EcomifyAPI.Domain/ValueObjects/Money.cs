@@ -5,12 +5,12 @@ using EcomifyAPI.Domain.Exceptions;
 
 namespace EcomifyAPI.Domain.ValueObjects;
 
-public readonly record struct Currency
+public readonly record struct Money
 {
     public string Code { get; init; } = string.Empty;
     public decimal Amount { get; init; }
 
-    public Currency(string code, decimal amount)
+    public Money(string code, decimal amount)
     {
         var errors = ValidateCurrency(code, amount);
 

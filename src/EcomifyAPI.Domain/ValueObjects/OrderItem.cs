@@ -10,10 +10,10 @@ public sealed class OrderItem
     public Guid Id { get; private set; }
     public Guid ProductId { get; private set; }
     public int Quantity { get; private set; }
-    public Currency UnitPrice { get; private set; }
-    public Currency TotalPrice => new(UnitPrice.Code, UnitPrice.Amount * Quantity);
+    public Money UnitPrice { get; private set; }
+    public Money TotalPrice => new(UnitPrice.Code, UnitPrice.Amount * Quantity);
 
-    public OrderItem(Guid id, Guid productId, int quantity, Currency unitPrice)
+    public OrderItem(Guid id, Guid productId, int quantity, Money unitPrice)
     {
         var errors = ValidateOrderItem(id, productId, quantity, unitPrice);
 
@@ -28,7 +28,7 @@ public sealed class OrderItem
         UnitPrice = unitPrice;
     }
 
-    private static ReadOnlyCollection<ValidationError> ValidateOrderItem(Guid id, Guid productId, int quantity, Currency unitPrice)
+    private static ReadOnlyCollection<ValidationError> ValidateOrderItem(Guid id, Guid productId, int quantity, Money unitPrice)
     {
         var errors = new List<ValidationError>();
 

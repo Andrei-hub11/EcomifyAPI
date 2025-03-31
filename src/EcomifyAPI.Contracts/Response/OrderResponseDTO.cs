@@ -7,7 +7,7 @@ public sealed record OrderResponseDTO(
     Guid Id,
     string UserId,
     DateTime OrderDate,
-    OrderStatusEnum Status,
+    OrderStatusDTO Status,
     decimal TotalAmount,
     string CurrencyCode,
     AddressDTO ShippingAddress,

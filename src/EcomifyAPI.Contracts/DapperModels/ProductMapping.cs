@@ -11,7 +11,7 @@ public sealed class ProductMapping
     public string CurrencyCode { get; set; } = string.Empty;
     public int Stock { get; set; }
     public string ImageUrl { get; set; } = string.Empty;
-    public ProductStatusEnum Status { get; set; }
+    public ProductStatusDTO Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<ProductCategoryMapping> ProductCategories { get; set; } = [];

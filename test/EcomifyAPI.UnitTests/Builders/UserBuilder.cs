@@ -4,14 +4,14 @@ namespace EcomifyAPI.UnitTests.Builders;
 
 public class UserBuilder
 {
-    private Guid _id = Guid.NewGuid();
+    private Guid? _id = Guid.NewGuid();
     private string _keycloakId = "kc123";
     private string _userName = "testuser";
     private string _email = "test@example.com";
     private readonly string _profileImagePath = "path/to/image.jpg";
     private HashSet<string> _roles = new() { "User" };
 
-    public UserBuilder WithId(Guid id)
+    public UserBuilder WithId(Guid? id)
     {
         _id = id;
         return this;
@@ -44,11 +44,12 @@ public class UserBuilder
     public Result<User> Build()
     {
         return User.Create(
-            _id,
             _keycloakId,
             _userName,
             _email,
             _profileImagePath,
-            _roles);
+            _roles,
+            _id
+            );
     }
 }

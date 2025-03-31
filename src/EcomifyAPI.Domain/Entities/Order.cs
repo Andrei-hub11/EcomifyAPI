@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Common.Utils.ResultError;
-using EcomifyAPI.Contracts.Enums;
+using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
 
 namespace EcomifyAPI.Domain.Entities;
@@ -13,7 +13,7 @@ public sealed class Order
 
     public Guid Id { get; private set; }
     public string UserId { get; private set; } = string.Empty;
-    public Currency TotalAmount => CalculateTotalAmount();
+    public Money TotalAmount => CalculateTotalAmount();
     public DateTime OrderDate { get; private set; }
     public OrderStatusEnum Status { get; private set; }
     public DateTime CreatedAt { get; private set; }
@@ -35,9 +35,38 @@ public sealed class Order
         BillingAddress = billingAddress;
     }
 
-    public static Result<Order> Create(Guid id, string userId, DateTime orderDate, OrderStatusEnum status, DateTime createdAt, DateTime? completedAt, Address shippingAddress, Address billingAddress)
+    public static Result<Order> Create(
+        string userId,
+        DateTime orderDate,
+        OrderStatusEnum status,
+        DateTime createdAt,
+        DateTime? completedAt,
+        Address shippingAddress,
+        Address billingAddress,
+        Guid? id = null
+        )
     {
-        var errors = ValidateOrder(id, userId, orderDate, status, shippingAddress, billingAddress);
+        var errors = ValidateOrder(userId, orderDate, status, id);
+
+        if (errors.Count != 0)
+        {
+            return Result.Fail(errors);
+        }
+
+        return new Order(id ?? Guid.Empty, userId, orderDate, status, createdAt, completedAt, shippingAddress, billingAddress);
+    }
+
+    public static Result<Order> From(
+        Guid id,
+        string userId,
+        DateTime orderDate,
+        OrderStatusEnum status,
+        DateTime createdAt,
+        DateTime? completedAt,
+        Address shippingAddress,
+        Address billingAddress)
+    {
+        var errors = ValidateOrder(userId, orderDate, status, id);
 
         if (errors.Count != 0)
         {
@@ -47,11 +76,16 @@ public sealed class Order
         return new Order(id, userId, orderDate, status, createdAt, completedAt, shippingAddress, billingAddress);
     }
 
-    private static ReadOnlyCollection<ValidationError> ValidateOrder(Guid id, string userId, DateTime orderDate, OrderStatusEnum status, Address shippingAddress, Address billingAddress)
+    private static ReadOnlyCollection<ValidationError> ValidateOrder(
+        string userId,
+        DateTime orderDate,
+        OrderStatusEnum status,
+        Guid? id = null
+        )
     {
         var errors = new List<ValidationError>();
 
-        if (id == Guid.Empty)
+        if (id is not null && id == Guid.Empty)
         {
             errors.Add(ValidationError.Create("Id is required", "ERR_ID_REQUIRED", "Id"));
         }
@@ -75,7 +109,7 @@ public sealed class Order
     }
 
 
-    public void AddItem(Product product, int quantity, Currency unitPrice)
+    public void AddItem(Product product, int quantity, Money unitPrice)
     {
         if (Status != OrderStatusEnum.Created)
         {
@@ -192,7 +226,7 @@ public sealed class Order
         BillingAddress = billingAddress;
     }
 
-    private Currency CalculateTotalAmount()
+    private Money CalculateTotalAmount()
     {
         var totalAmount = _items.Sum(i => i.TotalPrice.Amount);
         var currencyCode = _items.First().TotalPrice.Code;
@@ -202,6 +236,6 @@ public sealed class Order
             throw new InvalidOperationException("Total amount must be greater than 0");
         }
 
-        return new Currency(currencyCode, totalAmount);
+        return new Money(currencyCode, totalAmount);
     }
 }

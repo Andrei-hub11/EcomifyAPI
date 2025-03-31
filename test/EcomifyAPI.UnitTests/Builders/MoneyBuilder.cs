@@ -2,25 +2,25 @@ using EcomifyAPI.Domain.ValueObjects;
 
 namespace EcomifyAPI.UnitTests.ValueObjects.Builders;
 
-public class CurrencyBuilder
+public class MoneyBuilder
 {
     private string _code = "USD";
     private decimal _amount = 100.00m;
 
-    public CurrencyBuilder WithCode(string code)
+    public MoneyBuilder WithCode(string code)
     {
         _code = code;
         return this;
     }
 
-    public CurrencyBuilder WithAmount(decimal amount)
+    public MoneyBuilder WithAmount(decimal amount)
     {
         _amount = amount;
         return this;
     }
 
-    public Currency Build()
+    public Money Build()
     {
-        return new Currency(_code, _amount);
+        return new Money(_code, _amount);
     }
 }

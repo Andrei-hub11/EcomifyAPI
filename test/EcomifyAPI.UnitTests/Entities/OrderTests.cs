@@ -1,5 +1,5 @@
-using EcomifyAPI.Contracts.Enums;
 using EcomifyAPI.Domain.Entities;
+using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
 using EcomifyAPI.UnitTests.Builders;
 
@@ -60,7 +60,7 @@ public class OrderTests
         // Arrange
         var order = _builder.Build().Value;
         var product = CreateSampleProduct();
-        order!.AddItem(product, 1, new Currency("USD", 100));
+        order!.AddItem(product, 1, new Money("USD", 100));
 
         // Act
         order.ProcessPayment();
@@ -90,7 +90,7 @@ public class OrderTests
         var product = CreateSampleProduct();
 
         // Act
-        order!.AddItem(product, 1, new Currency("USD", 100));
+        order!.AddItem(product, 1, new Money("USD", 100));
 
         // Assert
         order.OrderItems.Count.ShouldBe(1);
@@ -100,14 +100,14 @@ public class OrderTests
     private static Product CreateSampleProduct()
     {
         var result = Product.Create(
-            Guid.NewGuid(),
             "Sample Product",
             "Description",
             100,
             "BRL",
             10,
             "http://example.com/image.jpg",
-            ProductStatusEnum.Active);
+            ProductStatusEnum.Active,
+            Guid.NewGuid());
 
         return result.Value!;
     }
