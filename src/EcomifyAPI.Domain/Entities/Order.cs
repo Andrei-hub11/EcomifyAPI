@@ -9,8 +9,6 @@ namespace EcomifyAPI.Domain.Entities;
 
 public sealed class Order
 {
-    private readonly List<OrderItem> _items = [];
-
     public Guid Id { get; private set; }
     public string UserId { get; private set; } = string.Empty;
     public Money TotalAmount => CalculateTotalAmount();
@@ -22,8 +20,18 @@ public sealed class Order
     public Address BillingAddress { get; private set; }
 
     public IReadOnlyList<OrderItem> OrderItems => _items.AsReadOnly();
+    private readonly List<OrderItem> _items = [];
 
-    private Order(Guid id, string userId, DateTime orderDate, OrderStatusEnum status, DateTime createdAt, DateTime? completedAt, Address shippingAddress, Address billingAddress)
+    private Order(
+        Guid id,
+        string userId,
+        DateTime orderDate,
+        OrderStatusEnum status,
+        DateTime createdAt,
+        DateTime? completedAt,
+        Address shippingAddress,
+        Address billingAddress,
+        List<OrderItem> orderItems)
     {
         Id = id;
         UserId = userId;
@@ -33,6 +41,7 @@ public sealed class Order
         CompletedAt = completedAt;
         ShippingAddress = shippingAddress;
         BillingAddress = billingAddress;
+        _items.AddRange(orderItems);
     }
 
     public static Result<Order> Create(
@@ -53,7 +62,14 @@ public sealed class Order
             return Result.Fail(errors);
         }
 
-        return new Order(id ?? Guid.Empty, userId, orderDate, status, createdAt, completedAt, shippingAddress, billingAddress);
+        return new Order(
+        id ?? Guid.Empty,
+        userId, orderDate,
+        status, createdAt,
+        completedAt,
+        shippingAddress,
+        billingAddress,
+        []);
     }
 
     public static Result<Order> From(
@@ -64,7 +80,8 @@ public sealed class Order
         DateTime createdAt,
         DateTime? completedAt,
         Address shippingAddress,
-        Address billingAddress)
+        Address billingAddress,
+        List<OrderItem> items)
     {
         var errors = ValidateOrder(userId, orderDate, status, id);
 
@@ -73,7 +90,16 @@ public sealed class Order
             return Result.Fail(errors);
         }
 
-        return new Order(id, userId, orderDate, status, createdAt, completedAt, shippingAddress, billingAddress);
+        return new Order(
+            id,
+            userId,
+            orderDate,
+            status,
+            createdAt,
+            completedAt,
+            shippingAddress,
+            billingAddress,
+            items);
     }
 
     private static ReadOnlyCollection<ValidationError> ValidateOrder(

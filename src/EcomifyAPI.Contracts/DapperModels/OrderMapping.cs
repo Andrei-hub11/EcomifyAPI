@@ -10,6 +10,8 @@ public class OrderMapping
     public OrderStatusDTO Status { get; set; }
     public decimal TotalAmount { get; set; }
     public string CurrencyCode { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime CompletedAt { get; set; }
     public ShippingAddressMapping ShippingAddress { get; set; } = new();
     public BillingAddressMapping BillingAddress { get; set; } = new();
     public List<OrderItemMapping> Items { get; set; } = [];

@@ -53,8 +53,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         services.AddScoped<IUserRepository, UserRepository>();
+
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<ICartRepository, CartRepository>();
+
+        services.AddScoped<IPaymentRepository, PaymentRepository>();
 
         services.AddScoped<IEmailSender, EmailSender>();
         services.AddScoped<IUserContext, UserContexts>();

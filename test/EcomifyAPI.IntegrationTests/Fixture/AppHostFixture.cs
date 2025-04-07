@@ -39,6 +39,9 @@ public class AppHostFixture : IAsyncLifetime
     private Respawner _respawner = default!;
     private WebApplicationFactory<Program> _factory = default!;
     private HttpClient _client = default!;
+    private TestHttpClientHandler _testHandler = default!;
+
+    public void ClearCookies() => _testHandler.ClearCookies();
 
     private static readonly string SetupPath = Path.Combine(
         Directory.GetCurrentDirectory(),
@@ -73,8 +76,9 @@ public class AppHostFixture : IAsyncLifetime
             .WithEnvironment("KC_DB_PASSWORD", Password)
             .WithEnvironment("KC_BOOTSTRAP_ADMIN_USERNAME", AdminUsername)
             .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", AdminPassword)
-            .WithPortBinding(9090, true)
+            .WithPortBinding(8080, true)
             .WithNetwork(_network)
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(8080))
             .WithResourceMapping(new FileInfo("realm-export.json"),
             new FileInfo("/opt/keycloak/data/import/realm-export.json"))
             .WithCommand("--import-realm")
@@ -215,7 +219,7 @@ public class AppHostFixture : IAsyncLifetime
                     config.AddInMemoryCollection(
                         new List<KeyValuePair<string, string?>>
                         {
-                            new KeyValuePair<string, string?>(
+                            new(
                                 "ConnectionStrings:DefaultConnection",
                                 GetConnectionString()
                             ),
@@ -230,14 +234,26 @@ public class AppHostFixture : IAsyncLifetime
                             new("UserKeycloakClient:client_id", ClientId),
                             new("UserKeycloakClient:client_secret", clientSecret),
                             new("UserKeycloakClient:TokenEndpoint", $"{_keycloakContainer.GetBaseAddress()}/realms/base-realm/protocol/openid-connect/token"),
-                            new("UserKeycloakClient:EndpointBase", $"{_keycloakContainer.GetBaseAddress()}/realms/base-realm")
+                            new("UserKeycloakClient:EndpointBase", $"{_keycloakContainer.GetBaseAddress()}/realms/base-realm"),
+                            new("Keycloak:Realm", RealmName),
+                            new("Keycloak:AuthServerUrl", $"{_keycloakContainer.GetBaseAddress()}"),
+                            new("Keycloak:Resource", ClientId),
+                            new("Keycloak:VerifyTokenAudience", "false"),
+                            new("Keycloak:Credentials:Secret", clientSecret)
                         }
                     );
                 }
             );
         });
 
-        _client = _factory.CreateClient();
+        var innerHandler = _factory.Server.CreateHandler();
+
+        _testHandler = new TestHttpClientHandler(innerHandler);
+
+        _client = new HttpClient(_testHandler)
+        {
+            BaseAddress = _factory.Server.BaseAddress
+        };
     }
 
     public HttpClient CreateClient() => _client;
@@ -245,13 +261,6 @@ public class AppHostFixture : IAsyncLifetime
     public string GetConnectionString()
     {
         return $"Host=localhost;Port={_container.GetMappedPublicPort(5432)};Database={Database};Username={Username};Password={Password};";
-    }
-
-    public async Task IsPostgresReady()
-    {
-        var connection = new NpgsqlConnection(GetConnectionString());
-        await connection.OpenAsync();
-        await connection.CloseAsync();
     }
 
     private static string GetProjectPath()

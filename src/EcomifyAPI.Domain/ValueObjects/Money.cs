@@ -23,6 +23,16 @@ public readonly record struct Money
         Amount = amount;
     }
 
+    internal static Money Zero(string currencyCode)
+    {
+        if (string.IsNullOrWhiteSpace(currencyCode))
+        {
+            throw new DomainException(ValidationError.Create("Currency code is required", "ERR_CURRENCY_REQ", "CurrencyCode"));
+        }
+
+        return new Money { Code = currencyCode, Amount = 0 };
+    }
+
     private static ReadOnlyCollection<ValidationError> ValidateCurrency(string code, decimal amount)
     {
         var errors = new List<ValidationError>();

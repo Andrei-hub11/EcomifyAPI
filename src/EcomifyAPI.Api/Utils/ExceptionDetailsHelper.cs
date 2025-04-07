@@ -37,28 +37,28 @@ public class ExceptionDetailsHelper
 
         var statusCode = badRequestResult.StatusCode;
 
-        details.AppendLine($"Erro ao processar a solicitação na rota '{context.Request.Path}'.");
-        details.AppendLine($"Código HTTP: {statusCode ?? 400}");
+        details.AppendLine($"Error processing request at route '{context.Request.Path}'.");
+        details.AppendLine($"HTTP Status Code: {statusCode ?? 400}");
 
         // Extract and format the errors if any
         if (badRequestResult.Value is ValidationErrorDetails validationErrors)
         {
-            details.AppendLine("Detalhes dos erros de validação:");
+            details.AppendLine("Validation error details:");
 
             foreach (var error in validationErrors.Errors)
             {
-                details.AppendLine($"Campo: {error.Key}");
+                details.AppendLine($"Field: {error.Key}");
                 foreach (var validationError in error.Value)
                 {
                     details.AppendLine(
-                        $"- Código: {validationError.Code}, Mensagem: {validationError.Description}"
+                        $"- Code: {validationError.Code}, Message: {validationError.Description}"
                     );
                 }
             }
         }
         else
         {
-            details.AppendLine($"Mensagem de erro: {badRequestResult.Value?.ToString()}");
+            details.AppendLine($"Error message: {badRequestResult.Value?.ToString()}");
         }
 
         return details.ToString();
@@ -68,19 +68,19 @@ public class ExceptionDetailsHelper
     {
         var details = new StringBuilder();
 
-        details.AppendLine($"Erro ao processar a solicitação na rota '{context.Request.Path}'.");
+        details.AppendLine($"Error processing request at route '{context.Request.Path}'.");
         details.AppendLine(
-            $"Código HTTP: {problemDetails.Status ?? StatusCodes.Status500InternalServerError}"
+            $"HTTP Status Code: {problemDetails.Status ?? StatusCodes.Status500InternalServerError}"
         );
-        details.AppendLine($"Título: {problemDetails.Title ?? "Erro desconhecido"}");
+        details.AppendLine($"Title: {problemDetails.Title ?? "Unknown error"}");
         details.AppendLine(
-            $"Detalhes: {problemDetails.Detail ?? "Nenhuma informação adicional disponível."}"
+            $"Details: {problemDetails.Detail ?? "No additional information available."}"
         );
-        details.AppendLine($"Instância: {$"{context.Request.Method} {context.Request.Path}"}");
+        details.AppendLine($"Instance: {$"{context.Request.Method} {context.Request.Path}"}");
 
         if (problemDetails.Extensions != null && problemDetails.Extensions.Count > 0)
         {
-            details.AppendLine("Informações adicionais:");
+            details.AppendLine("Additional information:");
             foreach (var extension in problemDetails.Extensions)
             {
                 details.AppendLine($"- {extension.Key}: {extension.Value}");

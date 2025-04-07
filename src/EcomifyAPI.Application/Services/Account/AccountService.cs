@@ -24,6 +24,7 @@ public class AccountService : IAccountService
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IKeycloakService _keycloakService;
+    private readonly ICookieService _cookieService;
     private readonly ITokenService _tokenService;
     private readonly IImagesService _imagesService;
     private readonly IEmailSender _emailSender;
@@ -34,6 +35,7 @@ public class AccountService : IAccountService
     public AccountService(
         IUnitOfWork unitOfWork,
         IKeycloakService keycloakService,
+        ICookieService cookieService,
         ITokenService tokenService,
         IImagesService imagesService,
         IEmailSender emailSender,
@@ -46,6 +48,7 @@ public class AccountService : IAccountService
         _userRepository = unitOfWork.GetRepository<IUserRepository>();
         _keycloakService = keycloakService;
         _tokenService = tokenService;
+        _cookieService = cookieService;
         _imagesService = imagesService;
         _emailSender = emailSender;
         _configuration = configuration;
@@ -173,6 +176,9 @@ public class AccountService : IAccountService
 
             await _unitOfWork.CommitAsync(cancellationToken);
 
+            _cookieService.SetCookie("access_token", authResult.Value.AccessToken, 15);
+            _cookieService.SetCookie("refresh_token", authResult.Value.RefreshToken, 14);
+
             return authResult;
         }
         catch (Exception)
@@ -235,6 +241,9 @@ public class AccountService : IAccountService
             {
                 return Result.Fail(auth.Errors);
             }
+
+            _cookieService.SetCookie("access_token", auth.Value.AccessToken, 15);
+            _cookieService.SetCookie("refresh_token", auth.Value.RefreshToken, 14);
 
             return auth.Value;
         }

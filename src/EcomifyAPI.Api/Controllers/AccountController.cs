@@ -14,11 +14,13 @@ namespace EcomifyAPI.Api.Controllers;
 public class AccountController : ControllerBase
 {
     private readonly IAccountService _accountService;
+    private readonly ICookieService _cookieService;
     private readonly IWebHostEnvironment _environment;
 
-    public AccountController(IAccountService accountService, IWebHostEnvironment environment)
+    public AccountController(IAccountService accountService, ICookieService cookieService, IWebHostEnvironment environment)
     {
         _accountService = accountService;
+        _cookieService = cookieService;
         _environment = environment;
     }
 
@@ -175,6 +177,15 @@ public class AccountController : ControllerBase
     //        onFailure: (errors) => errors.ToProblemDetailsResult()
     //    );
     //}
+
+    [HttpPost("logout")]
+    public IActionResult Logout()
+    {
+        _cookieService.DeleteCookie("access_token");
+        _cookieService.DeleteCookie("refresh_token");
+
+        return Ok();
+    }
 
     /// <summary>
     /// Updates the user password.

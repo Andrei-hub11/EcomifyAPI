@@ -33,6 +33,27 @@ public static class MappingExtensionsProducts
         };
     }
 
+    public static ProductCategoryResponseDTO ToDTO(this ProductCategoryMapping productCategory)
+    {
+        return new ProductCategoryResponseDTO(productCategory.ProductId, productCategory.ProductCategoryId);
+    }
+
+    public static IReadOnlyList<ProductCategoryResponseDTO> ToDTO(this IEnumerable<ProductCategoryMapping> productCategories)
+    {
+        return [.. productCategories.Select(productCategory => productCategory.ToDTO())];
+    }
+
+    public static CategoryResponseDTO ToDTO(this CategoryMapping category)
+    {
+        return new CategoryResponseDTO(category.CategoryId, category.CategoryName, category.CategoryDescription);
+    }
+
+    public static IReadOnlyList<CategoryResponseDTO> ToDTO(this IEnumerable<CategoryMapping> categories)
+    {
+        return [.. categories.Select(category => category.ToDTO())];
+    }
+
+
     public static Product ToDomain(this ProductMapping product)
     {
         var result = Product.From(product.Id,

@@ -62,6 +62,20 @@ public sealed class ProductService : IProductService
         }
     }
 
+    public async Task<Result<IReadOnlyList<CategoryResponseDTO>>> GetCategoriesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var categories = await _productRepository.GetCategoriesAsync(cancellationToken);
+
+            return Result.Ok(categories.ToDTO());
+        }
+        catch
+        {
+            throw;
+        }
+    }
+
     public async Task<Result<bool>> CreateAsync(CreateProductRequestDTO request, CancellationToken cancellationToken = default)
     {
         try
@@ -120,6 +134,8 @@ public sealed class ProductService : IProductService
             }
 
             await _productRepository.CreateCategoryAsync(category.Value, cancellationToken);
+
+            await _unitOfWork.CommitAsync(cancellationToken);
 
             return Result.Ok(true);
         }

@@ -8,6 +8,7 @@ using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
 using EcomifyAPI.Domain.Entities;
+using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
 
 namespace EcomifyAPI.Application.Services.Orders;
@@ -133,6 +134,130 @@ public sealed class OrderService : IOrderService
             {
                 await _orderRepository.CreateOrderItemAsync(item, orderId, cancellationToken);
             }
+
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return true;
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<Result<bool>> UpdateOrderAsync(Guid orderId, UpdateOrderRequestDTO request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var existingOrder = await _orderRepository.GetByIdAsync(orderId, cancellationToken);
+
+            if (existingOrder is null)
+            {
+                return Result.Fail(OrderErrorFactory.OrderNotFound(orderId));
+            }
+
+            var order = Order.From(
+                request.OrderId,
+                existingOrder.UserId,
+                existingOrder.OrderDate,
+                request.Status.ToOrderStatusDomain(),
+                existingOrder.CreatedAt,
+                existingOrder.CompletedAt,
+                new Address(
+                    request.ShippingAddress.Street,
+                    request.ShippingAddress.Number,
+                    request.ShippingAddress.City,
+                    request.ShippingAddress.State,
+                    request.ShippingAddress.ZipCode,
+                    request.ShippingAddress.Country,
+                    request.ShippingAddress.Complement),
+                new Address(
+                    request.BillingAddress.Street,
+                    request.BillingAddress.Number,
+                    request.BillingAddress.City,
+                    request.BillingAddress.State,
+                    request.BillingAddress.ZipCode,
+                    request.BillingAddress.Country,
+                    request.BillingAddress.Complement),
+                    [.. request.ItemsToUpdate.Select(item => new OrderItem(
+                    item.ItemId,
+                    item.ProductId,
+                    item.Quantity,
+                    new Money(item.UnitPrice.Code, item.UnitPrice.Amount)))]);
+
+            if (order.IsFailure)
+            {
+                return Result.Fail(order.Errors);
+            }
+
+            await _orderRepository.UpdateAsync(order.Value, cancellationToken);
+
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return true;
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<Result<bool>> CompleteOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var existingOrder = await _orderRepository.GetByIdAsync(orderId, cancellationToken);
+
+            if (existingOrder is null)
+            {
+                return Result.Fail(OrderErrorFactory.OrderNotFound(orderId));
+            }
+
+            if (existingOrder.Status.ToOrderStatusDomain() == OrderStatusEnum.Completed)
+            {
+                return Result.Fail(OrderErrorFactory.OrderAlreadyCompleted(orderId));
+            }
+
+            var order = Order.From(
+                existingOrder.Id,
+                existingOrder.UserId,
+                existingOrder.OrderDate,
+                existingOrder.Status.ToOrderStatusDomain(),
+                existingOrder.CreatedAt,
+                DateTime.UtcNow,
+                new Address(
+                    existingOrder.ShippingAddress.ShippingStreet,
+                    existingOrder.ShippingAddress.ShippingNumber,
+                    existingOrder.ShippingAddress.ShippingCity,
+                    existingOrder.ShippingAddress.ShippingState,
+                    existingOrder.ShippingAddress.ShippingZipCode,
+                    existingOrder.ShippingAddress.ShippingCountry,
+                    existingOrder.ShippingAddress.ShippingComplement),
+                new Address(
+                    existingOrder.BillingAddress.BillingStreet,
+                    existingOrder.BillingAddress.BillingNumber,
+                    existingOrder.BillingAddress.BillingCity,
+                    existingOrder.BillingAddress.BillingState,
+                    existingOrder.BillingAddress.BillingZipCode,
+                    existingOrder.BillingAddress.BillingCountry,
+                    existingOrder.BillingAddress.BillingComplement),
+                existingOrder.Items.Select(item => new OrderItem(
+                    item.ItemId,
+                    item.ProductId,
+                    item.Quantity,
+                    new Money(item.CurrencyCode, item.UnitPrice)
+                )).ToList()
+            );
+
+            if (order.IsFailure)
+            {
+                return Result.Fail(order.Errors);
+            }
+
+            order.Value.UpdateStatus(OrderStatusEnum.Completed);
+            await _orderRepository.UpdateAsync(order.Value, cancellationToken);
 
             await _unitOfWork.CommitAsync(cancellationToken);
 

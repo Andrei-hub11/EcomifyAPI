@@ -136,6 +136,20 @@ public class ProductRepository : IProductRepository
 
         return category.FirstOrDefault();
     }
+
+    public async Task<IEnumerable<CategoryMapping>> GetCategoriesAsync(CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+            SELECT c.id AS categoryId, c.name AS categoryName, c.description AS categoryDescription
+            FROM categories c
+            ";
+
+        var categories = await Connection.QueryAsync<CategoryMapping>(
+            new CommandDefinition(query, cancellationToken: cancellationToken, transaction: Transaction)
+        );
+
+        return categories;
+    }
     public async Task<Guid> CreateProductAsync(Product product, CancellationToken cancellationToken = default)
     {
         const string query = @"

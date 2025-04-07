@@ -87,7 +87,7 @@ public class OrderRepository : IOrderRepository
     ";
 
         var orders = await Connection.QueryAsync<OrderMapping>(
-            new CommandDefinition(query, transaction: Transaction, cancellationToken: cancellationToken)
+            new CommandDefinition(query, cancellationToken: cancellationToken, transaction: Transaction)
         );
 
         foreach (var order in orders)
@@ -181,7 +181,7 @@ public class OrderRepository : IOrderRepository
             ";
 
         var orders = await Connection.QueryAsync<OrderMapping>(
-           new CommandDefinition(query, new { Id = id }, transaction: Transaction, cancellationToken: cancellationToken)
+           new CommandDefinition(query, new { Id = id }, cancellationToken: cancellationToken, transaction: Transaction)
        );
 
         foreach (var order in orders)
@@ -291,6 +291,91 @@ public class OrderRepository : IOrderRepository
         return result > 0;
     }
 
+    public async Task UpdateAsync(Order order, CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+        UPDATE orders
+        SET total_amount = @TotalAmount,
+            currency_code = @CurrencyCode,
+            order_date = @OrderDate,
+            status = @Status,
+            created_at = @CreatedAt,
+            completed_at = @CompletedAt,
+            shipping_street = @ShippingStreet,
+            shipping_city = @ShippingCity,
+            shipping_state = @ShippingState,
+            shipping_zip_code = @ShippingZipCode,
+            shipping_country = @ShippingCountry,
+            shipping_complement = @ShippingComplement,
+            billing_street = @BillingStreet,
+            billing_city = @BillingCity,
+            billing_state = @BillingState,
+            billing_zip_code = @BillingZipCode,
+            billing_country = @BillingCountry,
+            billing_complement = @BillingComplement
+        WHERE id = @Id";
+
+        const string orderItemsQuery = @"
+            UPDATE order_items
+            SET product_id = @ProductId,
+                quantity = @Quantity,
+                unit_price = @UnitPrice,
+                total_price = @TotalPrice,
+                currency_code = @CurrencyCode
+            WHERE order_id = @OrderId
+            ";
+
+        await Connection.ExecuteAsync(
+            new CommandDefinition(
+                query,
+                new
+                {
+                    order.Id,
+                    TotalAmount = order.TotalAmount.Amount,
+                    CurrencyCode = order.TotalAmount.Code,
+                    order.OrderDate,
+                    order.Status,
+                    order.CreatedAt,
+                    order.CompletedAt,
+                    ShippingStreet = order.ShippingAddress.Street,
+                    ShippingCity = order.ShippingAddress.City,
+                    ShippingState = order.ShippingAddress.State,
+                    ShippingZipCode = order.ShippingAddress.ZipCode,
+                    ShippingCountry = order.ShippingAddress.Country,
+                    ShippingComplement = order.ShippingAddress.Complement,
+                    BillingStreet = order.BillingAddress.Street,
+                    BillingCity = order.BillingAddress.City,
+                    BillingState = order.BillingAddress.State,
+                    BillingZipCode = order.BillingAddress.ZipCode,
+                    BillingCountry = order.BillingAddress.Country,
+                    BillingComplement = order.BillingAddress.Complement,
+                },
+                cancellationToken: cancellationToken,
+                transaction: Transaction
+            )
+        );
+
+        foreach (var item in order.OrderItems)
+        {
+            await Connection.ExecuteAsync(
+                new CommandDefinition(
+                orderItemsQuery,
+                new
+                {
+                    OrderId = order.Id,
+                    item.ProductId,
+                    item.Quantity,
+                    item.UnitPrice,
+                    item.TotalPrice,
+                    item.TotalPrice.Code
+                },
+                    cancellationToken: cancellationToken,
+                    transaction: Transaction
+                    )
+            );
+        }
+    }
+
     public async Task<bool> DeleteAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         const string query = @"
@@ -298,7 +383,7 @@ public class OrderRepository : IOrderRepository
             ";
 
         var result = await Connection.ExecuteAsync(
-            new CommandDefinition(query, new { Id = orderId }, transaction: Transaction, cancellationToken: cancellationToken)
+            new CommandDefinition(query, new { Id = orderId }, cancellationToken: cancellationToken, transaction: Transaction)
         );
 
         return result > 0;

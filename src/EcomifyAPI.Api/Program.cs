@@ -24,6 +24,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowSpecificOrigin");
 app.UseHttpsRedirection();
 app.UseExceptionHandler();
+app.UseMiddleware<TokenMiddleware>();
 app.UseMiddleware<UnauthorizedResponseMiddleware>();
 
 app.UseAuthentication();
