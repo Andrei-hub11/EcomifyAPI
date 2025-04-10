@@ -41,8 +41,6 @@ public class AppHostFixture : IAsyncLifetime
     private HttpClient _client = default!;
     private TestHttpClientHandler _testHandler = default!;
 
-    public void ClearCookies() => _testHandler.ClearCookies();
-
     private static readonly string SetupPath = Path.Combine(
         Directory.GetCurrentDirectory(),
         "Scripts",
@@ -204,6 +202,7 @@ public class AppHostFixture : IAsyncLifetime
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseContentRoot(GetProjectPath());
+            builder.UseEnvironment("Testing");
             builder.ConfigureAppConfiguration(
                 (context, config) =>
                 {
@@ -257,6 +256,10 @@ public class AppHostFixture : IAsyncLifetime
     }
 
     public HttpClient CreateClient() => _client;
+
+    public void ClearCookies() => _testHandler.ClearCookies();
+
+    public void ClearAccessToken(Uri baseAddress) => _testHandler.RemoveAccessToken(baseAddress);
 
     public string GetConnectionString()
     {

@@ -13,7 +13,7 @@ public class TestHttpClientHandler : DelegatingHandler
 
     protected override async Task<HttpResponseMessage> SendAsync([NotNull] HttpRequestMessage request, CancellationToken ct)
     {
-        Uri requestUri = request.RequestUri;
+        Uri requestUri = request.RequestUri ?? new Uri("https://localhost");
 
         string cookieHeader = this.cookies.GetCookieHeader(requestUri);
         if (!string.IsNullOrEmpty(cookieHeader))
@@ -32,14 +32,17 @@ public class TestHttpClientHandler : DelegatingHandler
                     if (setCookieHeader.Name.Value == null || setCookieHeader.Value == null)
                         continue;
 
-                    Cookie cookie = new Cookie(
+                    Cookie cookie = new(
                         setCookieHeader.Name.Value,
                         setCookieHeader.Value.Value ?? string.Empty,
                         setCookieHeader.Path.HasValue ? setCookieHeader.Path.Value : "/",
                         setCookieHeader.Domain.HasValue ? setCookieHeader.Domain.Value : requestUri.Host
                     );
 
-                    cookie.Expires = setCookieHeader.Expires.Value.DateTime;
+                    if (setCookieHeader.Expires.HasValue)
+                    {
+                        cookie.Expires = setCookieHeader.Expires.Value.DateTime;
+                    }
 
                     cookie.Secure = setCookieHeader.Secure;
 
@@ -60,4 +63,25 @@ public class TestHttpClientHandler : DelegatingHandler
 
     public CookieContainer GetCookies() => cookies;
     public void ClearCookies() => cookies = new();
+
+    public void RemoveAccessToken(Uri baseAddress)
+    {
+        var cookies = this.cookies.GetCookies(baseAddress);
+
+        foreach (Cookie cookie in cookies)
+        {
+            if (cookie.Name == "access_token")
+            {
+                var expiredCookie = new Cookie("access_token", "", cookie.Path, cookie.Domain)
+                {
+                    Expires = DateTime.UtcNow.AddDays(-1),
+                    Secure = cookie.Secure,
+                    HttpOnly = cookie.HttpOnly
+                };
+
+                this.cookies.Add(baseAddress, expiredCookie);
+                break;
+            }
+        }
+    }
 }
