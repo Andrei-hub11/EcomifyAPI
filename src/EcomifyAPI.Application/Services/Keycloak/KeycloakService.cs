@@ -179,6 +179,129 @@ public class KeycloakService : IKeycloakService
         }
     }
 
+    public async Task<Result<AuthResponseDTO>> RegisterAdminAsync(
+        UserRegisterRequestDTO request,
+        string profileImageUrl,
+        CancellationToken cancellationToken
+    )
+    {
+        Result<UserMapping> newUser = default!;
+        bool isRollback = true;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var tokenResponse = await GetAdminTokenAsync();
+
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                tokenResponse.AccessToken
+            );
+
+            var user = new
+            {
+                username = request.UserName,
+                email = request.Email,
+                enabled = true,
+                groups = new[] { "/Users", "/Admin" },
+                credentials = new[]
+                {
+                    new
+                    {
+                        type = "password",
+                        value = request.Password,
+                        temporary = false,
+                    },
+                },
+                attributes = new Dictionary<string, string>
+                {
+                    ["profileImagePath"] = profileImageUrl,
+                    ["normalizedUserName"] = request.UserName,
+                },
+            };
+
+            var json = JsonConvert.SerializeObject(user);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync($"{_endpointAdminBase}/users", content, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var resultMap = await _keycloakServiceErrorHandler.ExtractErrorFromResponse(
+                    response
+                );
+                return Result.Fail(resultMap.Errors);
+            }
+
+            newUser = await GetUserByNameAsync(request.UserName);
+
+            if (newUser.IsFailure)
+            {
+                return Result.Fail(newUser.Errors);
+            }
+
+
+            var userToken = await GetUserTokenAsync(request.UserName, request.Password);
+
+            if (userToken.IsFailure)
+            {
+                return Result.Fail(userToken.Errors);
+            }
+
+            var handler = new JwtSecurityTokenHandler();
+            var token = handler.ReadJwtToken(userToken.Value.AccessToken);
+            var rolesClaim = token.Claims.FirstOrDefault(c => c.Type == "resource_access")?.Value;
+
+            ThrowHelper.ThrowIfNull(rolesClaim);
+
+            var resourceAccess = JsonConvert.DeserializeObject<Dictionary<string, ResourceAccess>>(rolesClaim);
+
+            ThrowHelper.ThrowIfNull(resourceAccess);
+
+            var baseRealmRoles = resourceAccess["base-realm"].Roles;
+
+            ThrowHelper.ThrowIfNull(baseRealmRoles);
+
+            var userRoles = new HashSet<string>(baseRealmRoles);
+
+            isRollback = false;
+
+            return new AuthResponseDTO(
+                newUser.Value.ToResponseDTO(),
+                userToken.Value.AccessToken,
+                userToken.Value.RefreshToken,
+                userRoles
+            );
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+        finally
+        {
+            // If the user was successfully created in Keycloak, try to delete it in case of failure
+            if (
+                isRollback
+                && newUser != null
+                && !newUser.IsFailure
+                && !string.IsNullOrEmpty(newUser.Value.Id)
+            )
+            {
+                try
+                {
+                    await DeleteUserByIdAsync(newUser.Value.Id);
+                }
+                catch (Exception deleteEx)
+                {
+                    _logger.LogError(
+                        deleteEx,
+                        $"Failed to delete user with ID: {newUser.Value.Id} after a registration failure."
+                    );
+                }
+            }
+        }
+    }
+
+
     public async Task<Result<AuthResponseDTO>> LoginUserAync(
         UserLoginRequestDTO request,
         CancellationToken cancellationToken

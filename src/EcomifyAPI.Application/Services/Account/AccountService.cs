@@ -197,6 +197,76 @@ public class AccountService : IAccountService
         }
     }
 
+    public async Task<Result<AuthResponseDTO>> CreateAdminAsync(
+        UserRegisterRequestDTO request,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var userExisting = await _userRepository.GetUserByEmailAsync(
+                request.Email,
+                cancellationToken
+            );
+
+            if (userExisting != null)
+            {
+                return Result.Fail(UserErrorFactory.EmailAlreadyExists());
+            }
+
+            var profileImage = await _imagesService.GetProfileImageAsync(request.ProfileImage);
+
+            var preliminaryUser = User.Create(
+                id: Guid.NewGuid(),
+                keycloakId: Guid.NewGuid().ToString(),
+                name: request.UserName,
+                email: request.Email,
+                profileImagePath: profileImage.ProfileImagePath,
+                roles: new HashSet<string> { "Admin" }
+            );
+
+            if (preliminaryUser.IsFailure)
+            {
+                return Result.Fail(preliminaryUser.Errors);
+            }
+
+            var authResult = await _keycloakService.RegisterAdminAsync(request, profileImage.ProfileImagePath, cancellationToken);
+
+            if (authResult.IsFailure)
+            {
+                return Result.Fail(authResult.Errors);
+            }
+
+            var (user, _, _, roles) = authResult.Value;
+
+            var newUser = User.Create(
+                keycloakId: user.Id,
+                name: user.UserName,
+                email: user.Email,
+                profileImagePath: profileImage.ProfileImagePath,
+                roles
+            );
+
+            if (newUser.IsFailure)
+            {
+                return Result.Fail(newUser.Errors);
+            }
+
+            await _userRepository.CreateApplicationUser(newUser.Value, cancellationToken);
+
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            _cookieService.SetCookie("access_token", authResult.Value.AccessToken, 15);
+            _cookieService.SetCookie("refresh_token", authResult.Value.RefreshToken, 14);
+
+            return authResult;
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
+
     public async Task<Result<AuthResponseDTO>> LoginAsync(
         UserLoginRequestDTO request,
         CancellationToken cancellationToken

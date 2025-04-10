@@ -18,6 +18,10 @@ public interface IAccountService
         UserRegisterRequestDTO request,
         CancellationToken cancellationToken = default
     );
+    Task<Result<AuthResponseDTO>> CreateAdminAsync(
+        UserRegisterRequestDTO request,
+        CancellationToken cancellationToken = default
+    );
     Task<Result<AuthResponseDTO>> LoginAsync(
         UserLoginRequestDTO request,
         CancellationToken cancellationToken = default

@@ -85,12 +85,32 @@ public class AccountController : ControllerBase
     {
         var result = await _accountService.RegisterAsync(request, cancellationToken);
 
+        return result.Match(
+            onSuccess: (authResponse) => Ok(authResponse),
+            onFailure: (errors) => errors.ToProblemDetailsResult()
+        );
+    }
+
+    [HttpPost("test-utils/create-admin")]
+    public async Task<IActionResult> CreateAdmin(
+        [FromBody] UserRegisterRequestDTO request,
+        CancellationToken cancellationToken
+    )
+    {
+        if (!_environment.IsDevelopment() && !_environment.IsEnvironment("Testing"))
+        {
+            return NotFound();
+        }
+
+        var result = await _accountService.CreateAdminAsync(request, cancellationToken);
 
         return result.Match(
             onSuccess: (authResponse) => Ok(authResponse),
             onFailure: (errors) => errors.ToProblemDetailsResult()
         );
     }
+
+
 
     /// <summary>
     /// Logs in a user in the keycloak client.
@@ -148,6 +168,7 @@ public class AccountController : ControllerBase
     /// <response code="200">Returns the refreshed access token when found successfully.</response>
     /// <response code="400">Some invalid data was provided.</response>
     /// <response code="422">Validation errors</response>
+    [Authorize]
     [HttpPost("token-renew")]
     public async Task<IActionResult> RefreshAccessToken(
         [FromBody] UpdateAccessTokenRequestDTO request,

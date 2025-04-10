@@ -13,6 +13,8 @@ public interface IKeycloakService
     Task<Result<UserInfoMapping>> GetUserInfoAsync(string accessToken, CancellationToken cancellationToken);
     Task<Result<AuthResponseDTO>> RegisterUserAync(UserRegisterRequestDTO requestDTO, string profileImageUrl,
         CancellationToken cancellationToken);
+    Task<Result<AuthResponseDTO>> RegisterAdminAsync(UserRegisterRequestDTO requestDTO, string profileImageUrl,
+        CancellationToken cancellationToken);
     Task<Result<AuthResponseDTO>> LoginUserAync(UserLoginRequestDTO request, CancellationToken cancellationToken);
     Task<KeycloakToken> RefreshAccessTokenAsync(string refreshToken, CancellationToken cancellationToken);
     Task UpdateUserAsync(User user, CancellationToken cancellationToken = default);
