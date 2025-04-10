@@ -8,11 +8,11 @@ public class ProductBuilder
 {
     private Guid? _id = Guid.NewGuid();
     private string _name = "Test Product";
-    private readonly string _description = "Test Description";
+    private string _description = "Test Description";
     private decimal _price = 100.00m;
     private string _currencyCode = "BRL";
     private int _stock = 10;
-    private readonly string _imageUrl = "http://example.com/image.jpg";
+    private string _imageUrl = "http://example.com/image.jpg";
     private ProductStatusEnum _status = ProductStatusEnum.Active;
 
     public ProductBuilder WithId(Guid id)
@@ -51,6 +51,18 @@ public class ProductBuilder
         return this;
     }
 
+    public ProductBuilder WithImageUrl(string imageUrl)
+    {
+        _imageUrl = imageUrl;
+        return this;
+    }
+
+    public ProductBuilder WithDescription(string description)
+    {
+        _description = description;
+        return this;
+    }
+
     public Result<Product> Build()
     {
         return Product.Create(
@@ -63,5 +75,16 @@ public class ProductBuilder
             _status,
             _id
             );
+    }
+
+    public Result<Product> BuildFrom()
+    {
+        return Product.From(
+            _id ?? Guid.NewGuid(),
+            _name,
+            _description,
+            _price,
+            _currencyCode,
+            _stock, _imageUrl, _status);
     }
 }

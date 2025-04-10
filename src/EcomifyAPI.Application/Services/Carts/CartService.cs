@@ -97,7 +97,7 @@ public class CartService : ICartService
                 return CartErrorFactory.CartNotFound(userId);
             }
 
-            var existingProduct = await _productRepository.GetProductByIdAsync(productId);
+            var existingProduct = await _productRepository.GetByIdAsync(productId);
 
             if (existingProduct is null)
             {

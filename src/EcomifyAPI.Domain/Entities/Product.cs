@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Common.Utils.ResultError;
 using EcomifyAPI.Domain.Enums;
+using EcomifyAPI.Domain.Exceptions;
 using EcomifyAPI.Domain.ValueObjects;
 
 public sealed class Product
@@ -86,37 +87,37 @@ public sealed class Product
 
         if (id is not null && id == Guid.Empty)
         {
-            errors.Add(ValidationError.Create("Id is required", "ERR_ID_REQUIRED", "Id"));
+            errors.Add(ValidationError.Create("Id is required", "ERR_ID_REQ", "Id"));
         }
 
         if (string.IsNullOrWhiteSpace(name))
         {
-            errors.Add(ValidationError.Create("Name is required", "ERR_NAME_REQUIRED", "Name"));
+            errors.Add(ValidationError.Create("Name is required", "ERR_NAME_REQ", "Name"));
         }
 
         if (string.IsNullOrWhiteSpace(description))
         {
-            errors.Add(ValidationError.Create("Description is required", "ERR_DESCRIPTION_REQUIRED", "Description"));
+            errors.Add(ValidationError.Create("Description is required", "ERR_DESC_REQ", "Description"));
         }
 
         if (price <= 0)
         {
-            errors.Add(ValidationError.Create("Price must be greater than 0", "ERR_PRICE_MUST_BE_GREATER_THAN_0", "Price"));
+            errors.Add(ValidationError.Create("Price must be greater than 0", "ERR_PRICE_GT0", "Price"));
         }
 
         if (stock < 0)
         {
-            errors.Add(ValidationError.Create("Stock must be greater than 0", "ERR_STOCK_MUST_BE_GREATER_THAN_0", "Stock"));
+            errors.Add(ValidationError.Create("Stock must be greater than 0", "ERR_STOCK_GT0", "Stock"));
         }
 
         if (string.IsNullOrWhiteSpace(imageUrl))
         {
-            errors.Add(ValidationError.Create("ImageUrl is required", "ERR_IMAGE_URL_REQUIRED", "ImageUrl"));
+            errors.Add(ValidationError.Create("ImageUrl is required", "ERR_IMG_REQ", "ImageUrl"));
         }
 
         if (status == ProductStatusEnum.Inactive)
         {
-            errors.Add(ValidationError.Create("Status must be active", "ERR_STATUS_MUST_BE_ACTIVE", "Status"));
+            errors.Add(ValidationError.Create("Status must be active", "ERR_STATUS_ACTIVE", "Status"));
         }
 
         return errors.AsReadOnly();
@@ -126,10 +127,15 @@ public sealed class Product
     {
         if (quantity < 0)
         {
-            throw new ArgumentException("Quantity must be greater than 0");
+            throw new DomainException(Error.Validation("Quantity must be greater than 0", "ERR_QUANTITY_GT0", "Quantity"));
         }
 
         if (Stock - quantity < 0)
+        {
+            return false;
+        }
+
+        if (Stock == quantity)
         {
             return false;
         }
@@ -139,57 +145,128 @@ public sealed class Product
         return true;
     }
 
-    public void UpdateStock(int quantity)
+    public bool UpdateStock(int quantity)
     {
         if (quantity < 0)
         {
-            throw new ArgumentException("Quantity must be greater than 0");
+            throw new DomainException(Error.Validation("Quantity must be greater than 0", "ERR_QUANTITY_GT0", "Quantity"));
+        }
+
+        if (Stock == quantity)
+        {
+            return false;
         }
 
         Stock = quantity;
+
+        return true;
     }
 
-    public void UpdatePrice(decimal price, string currencyCode)
+    public bool UpdatePrice(decimal price, string currencyCode)
     {
         if (price <= 0)
         {
-            throw new ArgumentException("Price must be greater than 0");
+            throw new DomainException(Error.Validation("Price must be greater than 0", "ERR_PRICE_GT0", "Price"));
         }
 
         if (string.IsNullOrWhiteSpace(currencyCode))
         {
-            throw new ArgumentException("CurrencyCode is required");
+            throw new DomainException(Error.Validation("CurrencyCode is required", "ERR_CUR_REQ", "CurrencyCode"));
+        }
+
+        if (Price.Amount == price)
+        {
+            return false;
         }
 
         Price = new Money(currencyCode, price);
+
+        return true;
     }
 
-    public void UpdateStatus(ProductStatusEnum status)
+    public bool UpdateStatus(ProductStatusEnum status)
     {
-        Status = status;
-    }
-
-    public void UpdateImageUrl(string imageUrl)
-    {
-        if (string.IsNullOrEmpty(imageUrl))
+        if (Status == status)
         {
-            throw new ArgumentException("ImageUrl is required");
+            return false;
         }
+
+        Status = status;
+
+        return true;
     }
 
-    public void UpdateCategories(List<ProductCategory> categories)
+    public bool UpdateImageUrl(string imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl))
+        {
+            throw new DomainException(Error.Validation("ImageUrl is required", "ERR_IMG_REQ", "ImageUrl"));
+        }
+
+        if (ImageUrl == imageUrl)
+        {
+            return false;
+        }
+
+        ImageUrl = imageUrl;
+
+        return true;
+    }
+
+    public bool UpdateCategories(List<ProductCategory> categories)
     {
         if (categories.Count == 0)
         {
-            throw new ArgumentException("Categories must be at least one");
+            throw new DomainException(Error.Validation("Categories must be at least one", "ERR_CAT_MIN1", "Categories"));
         }
 
-        if (ProductCategories.Any(c => categories.Any(c2 => c2.CategoryId == c.CategoryId)))
+        if (categories.GroupBy(c => c.CategoryId).Any(g => g.Count() > 1))
         {
-            throw new ArgumentException("Categories must be unique");
+            throw new DomainException(Error.Validation("Categories must be unique", "ERR_CAT_UNQ", "Categories"));
         }
 
+        if (categories.Any(c => c.ProductId != Id))
+        {
+            throw new DomainException(Error.Validation("Categories must be associated with the product", "ERR_CAT_ASSOC", "Categories"));
+        }
+
+        _productCategories.Clear();
         _productCategories.AddRange(categories);
+
+        return true;
     }
 
+    public bool UpdateName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new DomainException(Error.Validation("Name is required", "ERR_NAME_REQ", "Name"));
+        }
+
+        if (Name == name)
+        {
+            return false;
+        }
+
+        Name = name;
+
+        return true;
+    }
+
+    public bool UpdateDescription(string description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            throw new DomainException(Error.Validation("Description is required", "ERR_DESC_REQ", "Description"));
+        }
+
+        if (Description == description)
+        {
+            return false;
+        }
+
+        Description = description;
+
+        return true;
+    }
 }

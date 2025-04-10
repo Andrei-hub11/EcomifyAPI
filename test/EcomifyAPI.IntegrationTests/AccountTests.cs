@@ -29,6 +29,47 @@ public class AccountTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetProfile_WithValidToken_ShouldReturnSuccess()
+    {
+        // the cookies of auth are set in response headers, so we dont need to set them in the request
+
+        // Arrange
+        var registerRequest = new RegisterRequestBuilder()
+            .WithUserName($"profiletest-{Guid.NewGuid()}")
+            .WithEmail($"profile@test.com-{Guid.NewGuid()}")
+            .WithPassword("Profile123!@#")
+            .Build();
+
+        var registerResponse = await _client.PostAsJsonAsync(
+            $"{_baseUrl}/account/register",
+            registerRequest
+        );
+
+        // Act
+        var response = await _client.GetAsync($"{_baseUrl}/account/profile");
+        var result = await response.Content.ReadFromJsonAsync<UserResponseDTO>();
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        result.ShouldNotBeNull();
+        result!.UserName.ShouldBe(registerRequest.UserName);
+        result.Email.ShouldBe(registerRequest.Email);
+    }
+
+    [Fact]
+    public async Task GetProfile_WithoutAuth_ShouldReturnUnauthorized()
+    {
+        // Arrange
+        _fixture.ClearCookies();
+
+        // Act
+        var response = await _client.GetAsync($"{_baseUrl}/account/profile");
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Register_WithValidData_ShouldReturnSuccess()
     {
         var uniqueId = Guid.NewGuid().ToString();
@@ -110,7 +151,7 @@ public class AccountTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Register_WithInvalidPassword_ShouldReturnBadRequest()
+    public async Task Register_WithInvalidPassword_ShouldReturnUnprocessableEntity()
     {
         var uniqueId = Guid.NewGuid().ToString();
         // Arrange
@@ -124,7 +165,7 @@ public class AccountTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync($"{_baseUrl}/account/register", request);
 
         // Assert
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
     }
 
     [Fact]

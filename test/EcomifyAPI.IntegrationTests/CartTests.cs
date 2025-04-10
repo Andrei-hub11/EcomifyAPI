@@ -20,7 +20,7 @@ public class CartTests : IAsyncLifetime
     private readonly AppHostFixture _fixture;
     private readonly string _baseUrl = "https://localhost:7037/api/v1";
     private readonly ITestOutputHelper _output;
-    private string _userId = string.Empty;
+    private string _adminId = string.Empty;
     private string _accessToken = string.Empty;
 
     public CartTests(AppHostFixture fixture, ITestOutputHelper output)
@@ -30,35 +30,35 @@ public class CartTests : IAsyncLifetime
         _client = fixture.CreateClient();
     }
 
-    private async Task AuthenticateUser()
+    private async Task AuthenticateAdmin()
     {
         var uniqueId = Guid.NewGuid().ToString();
         var registerRequest = new RegisterRequestBuilder()
-            .WithUserName($"carttest-{uniqueId}")
-            .WithEmail($"cart-{uniqueId}@test.com")
-            .WithPassword("Cart123!@#")
+            .WithUserName($"admin-{uniqueId}")
+            .WithEmail($"admin-{uniqueId}@test.com")
+            .WithPassword("Admin123!@#")
             .Build();
 
-        var response = await _client.PostAsJsonAsync($"{_baseUrl}/account/register", registerRequest);
-        var result = await response.Content.ReadFromJsonAsync<AuthResponseDTO>(new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            Converters = { new JsonStringSetConverter() },
-        });
+        var response = await _client.PostAsJsonAsync($"{_baseUrl}/account/test-utils/create-admin", registerRequest);
+        var result = await response.Content.ReadFromJsonAsync<AuthResponseDTO>(
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters = { new JsonStringSetConverter() },
+            });
 
-        _userId = result!.User.Id;
+        _adminId = result!.User.Id;
         _accessToken = result.AccessToken;
-        /* _client.DefaultRequestHeaders.Authorization = new("Bearer", _accessToken); */
     }
 
     [Fact]
     public async Task GetCart_WhenAuthenticated_ShouldReturnEmptyCart()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
 
         // Act
-        var response = await _client.GetAsync($"{_baseUrl}/carts/{_userId}");
+        var response = await _client.GetAsync($"{_baseUrl}/carts/{_adminId}");
         var cart = await response.Content.ReadFromJsonAsync<CartResponseDTO>(
             new JsonSerializerOptions
             {
@@ -76,7 +76,7 @@ public class CartTests : IAsyncLifetime
     public async Task GetCart_WhenUserNotFound_ShouldReturnNotFound()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
         var nonExistentUserId = Guid.NewGuid().ToString();
 
         // Act
@@ -90,7 +90,7 @@ public class CartTests : IAsyncLifetime
     public async Task AddItem_WhenAuthenticated_ShouldAddItemToCart()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
 
         var categoryRequest = new CategoryRequestBuilder()
             .WithName("Technology")
@@ -141,10 +141,10 @@ public class CartTests : IAsyncLifetime
             .Build();
 
         // force the creation of the cart
-        _ = await _client.GetAsync($"{_baseUrl}/carts/{_userId}");
+        _ = await _client.GetAsync($"{_baseUrl}/carts/{_adminId}");
 
         // Act
-        var response = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_userId}", addItemRequest);
+        var response = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_adminId}", addItemRequest);
         response.EnsureSuccessStatusCode();
 
         var cart = await response.Content.ReadFromJsonAsync<CartResponseDTO>(new JsonSerializerOptions
@@ -165,7 +165,7 @@ public class CartTests : IAsyncLifetime
     public async Task AddItem_WithNonExistentProduct_ShouldReturnNotFound()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
         var nonExistentProductId = Guid.NewGuid();
 
         var request = new AddItemRequestBuilder()
@@ -174,7 +174,7 @@ public class CartTests : IAsyncLifetime
             .Build();
 
         // Act
-        var response = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_userId}", request);
+        var response = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_adminId}", request);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -184,7 +184,7 @@ public class CartTests : IAsyncLifetime
     public async Task AddItem_WithInvalidQuantity_ShouldReturnUnprocessableEntity()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
 
         // Create a product first
         var categoryRequest = new CategoryRequestBuilder()
@@ -212,10 +212,10 @@ public class CartTests : IAsyncLifetime
             .Build();
 
         // force the creation of the cart
-        _ = await _client.GetAsync($"{_baseUrl}/carts/{_userId}");
+        _ = await _client.GetAsync($"{_baseUrl}/carts/{_adminId}");
 
         // Act
-        var response = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_userId}", request);
+        var response = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_adminId}", request);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
@@ -225,7 +225,7 @@ public class CartTests : IAsyncLifetime
     public async Task UpdateItemQuantity_WhenAuthenticated_ShouldUpdateQuantity()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
 
         var categoryRequest = new CategoryRequestBuilder()
            .WithName("Technology")
@@ -264,9 +264,9 @@ public class CartTests : IAsyncLifetime
             .Build();
 
         // force the creation of the cart
-        _ = await _client.GetAsync($"{_baseUrl}/carts/{_userId}");
+        _ = await _client.GetAsync($"{_baseUrl}/carts/{_adminId}");
 
-        await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_userId}", addItemRequest);
+        await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_adminId}", addItemRequest);
 
         // Act: Update the quantity
         var updateQuantityRequest = new UpdateItemQuantityRequestBuilder()
@@ -274,7 +274,7 @@ public class CartTests : IAsyncLifetime
             .WithQuantity(5)
             .Build();
 
-        var response = await _client.PutAsJsonAsync($"{_baseUrl}/carts/{_userId}/items", updateQuantityRequest);
+        var response = await _client.PutAsJsonAsync($"{_baseUrl}/carts/{_adminId}/items", updateQuantityRequest);
         response.EnsureSuccessStatusCode();
 
         var cart = await response.Content.ReadFromJsonAsync<CartResponseDTO>(new JsonSerializerOptions
@@ -292,7 +292,7 @@ public class CartTests : IAsyncLifetime
     public async Task UpdateItemQuantity_WithNonExistentProduct_ShouldReturnNotFound()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
         var nonExistentProductId = Guid.NewGuid();
 
         var request = new UpdateItemQuantityRequestBuilder()
@@ -301,7 +301,7 @@ public class CartTests : IAsyncLifetime
             .Build();
 
         // Act
-        var response = await _client.PutAsJsonAsync($"{_baseUrl}/carts/{_userId}/items", request);
+        var response = await _client.PutAsJsonAsync($"{_baseUrl}/carts/{_adminId}/items", request);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -311,7 +311,7 @@ public class CartTests : IAsyncLifetime
     public async Task UpdateItemQuantity_WithInvalidQuantity_ShouldReturnUnprocessableEntity()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
 
         // Create and add a product to cart first
         var categoryRequest = new CategoryRequestBuilder()
@@ -339,9 +339,9 @@ public class CartTests : IAsyncLifetime
             .Build();
 
         // force the creation of the cart
-        _ = await _client.GetAsync($"{_baseUrl}/carts/{_userId}");
+        _ = await _client.GetAsync($"{_baseUrl}/carts/{_adminId}");
 
-        await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_userId}", addRequest);
+        await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_adminId}", addRequest);
 
         // Try to update with invalid quantity
         var updateRequest = new UpdateItemQuantityRequestBuilder()
@@ -350,7 +350,7 @@ public class CartTests : IAsyncLifetime
             .Build();
 
         // Act
-        var response = await _client.PutAsJsonAsync($"{_baseUrl}/carts/{_userId}/items", updateRequest);
+        var response = await _client.PutAsJsonAsync($"{_baseUrl}/carts/{_adminId}/items", updateRequest);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
@@ -360,7 +360,7 @@ public class CartTests : IAsyncLifetime
     public async Task RemoveItem_WhenAuthenticated_ShouldRemoveItemFromCart()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
 
         var categoryRequest = new CategoryRequestBuilder()
             .WithName("Technology")
@@ -407,14 +407,14 @@ public class CartTests : IAsyncLifetime
         products.Count.ShouldBeGreaterThan(0);
 
         // force the creation of the cart
-        _ = await _client.GetAsync($"{_baseUrl}/carts/{_userId}");
+        _ = await _client.GetAsync($"{_baseUrl}/carts/{_adminId}");
 
         var addItemRequest = new AddItemRequestBuilder()
             .WithProductId(products[0].Id)
             .WithQuantity(1)
             .Build();
 
-        var addItemResponse = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_userId}", addItemRequest);
+        var addItemResponse = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_adminId}", addItemRequest);
         addItemResponse.EnsureSuccessStatusCode();
 
         var addedCart = await addItemResponse.Content.ReadFromJsonAsync<CartResponseDTO>(
@@ -428,7 +428,7 @@ public class CartTests : IAsyncLifetime
         addedCart.Items.Count.ShouldBe(1);
 
         // Act: Remove the item
-        var removeResponse = await _client.DeleteAsync($"{_baseUrl}/carts/{_userId}/{products[0].Id}");
+        var removeResponse = await _client.DeleteAsync($"{_baseUrl}/carts/{_adminId}/{products[0].Id}");
         removeResponse.EnsureSuccessStatusCode();
 
         var updatedCart = await removeResponse.Content.ReadFromJsonAsync<CartResponseDTO>(
@@ -447,11 +447,11 @@ public class CartTests : IAsyncLifetime
     public async Task RemoveItem_WithNonExistentProduct_ShouldReturnNotFound()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
         var nonExistentProductId = Guid.NewGuid();
 
         // Act
-        var response = await _client.DeleteAsync($"{_baseUrl}/carts/{_userId}/{nonExistentProductId}");
+        var response = await _client.DeleteAsync($"{_baseUrl}/carts/{_adminId}/{nonExistentProductId}");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -461,7 +461,7 @@ public class CartTests : IAsyncLifetime
     public async Task ClearCart_WhenAuthenticated_ShouldRemoveAllItems()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
 
         var categoryRequest = new CategoryRequestBuilder().WithName("Tech").Build();
         await _client.PostAsJsonAsync($"{_baseUrl}/products/categories", categoryRequest);
@@ -488,17 +488,17 @@ public class CartTests : IAsyncLifetime
         }))![0];
 
         // force the creation of the cart
-        _ = await _client.GetAsync($"{_baseUrl}/carts/{_userId}");
+        _ = await _client.GetAsync($"{_baseUrl}/carts/{_adminId}");
 
         var addItemRequest = new AddItemRequestBuilder()
             .WithProductId(product.Id)
             .WithQuantity(3)
             .Build();
 
-        await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_userId}", addItemRequest);
+        await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_adminId}", addItemRequest);
 
         // Act: Clear the cart
-        var response = await _client.DeleteAsync($"{_baseUrl}/carts/{_userId}");
+        var response = await _client.DeleteAsync($"{_baseUrl}/carts/{_adminId}");
         response.EnsureSuccessStatusCode();
 
         var cart = await response.Content.ReadFromJsonAsync<CartResponseDTO>();
@@ -512,7 +512,7 @@ public class CartTests : IAsyncLifetime
     public async Task ClearCart_WhenCartNotFound_ShouldReturnNotFound()
     {
         // Arrange
-        await AuthenticateUser();
+        await AuthenticateAdmin();
         var nonExistentUserId = Guid.NewGuid().ToString();
 
         // Act

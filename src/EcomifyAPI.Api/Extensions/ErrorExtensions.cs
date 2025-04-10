@@ -1,4 +1,5 @@
-﻿using EcomifyAPI.Common.Extensions;
+﻿using EcomifyAPI.Api.Models;
+using EcomifyAPI.Common.Extensions;
 using EcomifyAPI.Common.Utils.ResultError;
 using EcomifyAPI.Contracts.Models;
 
@@ -68,7 +69,7 @@ public static class ErrorExtensions
     /// </summary>
     /// <param name="errors">The list of errors to convert.</param>
     /// <returns>An <see cref="BadRequestObjectResult"/> representing the validation problem details result.</returns>
-    private static BadRequestObjectResult ToValidationProblemDetailsResult(this IReadOnlyList<IError> errors)
+    private static ObjectResult ToValidationProblemDetailsResult(this IReadOnlyList<IError> errors)
     {
         Dictionary<string, ValidationErrorDetail[]> validationErrors = errors
             .OfType<ValidationError>()
@@ -78,24 +79,15 @@ public static class ErrorExtensions
                 group => group.Select(error =>
                 new ValidationErrorDetail(error.Code, error.Description)).ToArray());
 
-        //var validationProblemDetails = new ValidationErrorDetails(validationErrors)
-        //{
-        //    Status = StatusCodes.Status400BadRequest,
-        //    Title = "One or more validation errors occurred.",
-        //    Detail = "See the errors property for details.",
-        //    Instance = Guid.NewGuid().ToString(), // Identificador único
-        //    Type = "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400"
-        //};
+        var validationProblemDetails = new CustomProblemDetails(validationErrors)
+        {
+            Status = StatusCodes.Status422UnprocessableEntity,
+            Title = "One or more validation errors occurred.",
+            Detail = "See the 'Errors' property for details.",
+            Instance = Guid.NewGuid().ToString(),
+            Type = "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/422",
+        };
 
-        var validationProblemDetails = new ValidationErrorDetails(
-        Title: "One or more validation errors occurred.",
-        Type: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/422",
-        Status: 422,
-        Detail: "See the 'Errors' property for details.",
-        Instance: Guid.NewGuid().ToString(),
-        Errors: validationErrors
-        );
-
-        return new BadRequestObjectResult(validationProblemDetails);
+        return new ObjectResult(validationProblemDetails) { StatusCode = StatusCodes.Status422UnprocessableEntity };
     }
 }

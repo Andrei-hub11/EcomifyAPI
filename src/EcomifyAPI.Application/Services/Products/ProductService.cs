@@ -5,6 +5,7 @@ using EcomifyAPI.Application.Contracts.Services;
 using EcomifyAPI.Application.DTOMappers;
 using EcomifyAPI.Common.Utils.Errors;
 using EcomifyAPI.Common.Utils.Result;
+using EcomifyAPI.Common.Validation;
 using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
 using EcomifyAPI.Domain.Entities;
@@ -29,7 +30,7 @@ public sealed class ProductService : IProductService
     {
         try
         {
-            var products = await _productRepository.GetProductsAsync(cancellationToken);
+            var products = await _productRepository.GetAsync(cancellationToken);
 
             return Result.Ok(products.ToResponseDTO());
         }
@@ -42,7 +43,7 @@ public sealed class ProductService : IProductService
     {
         try
         {
-            var product = await _productRepository.GetProductByIdAsync(id, cancellationToken);
+            var product = await _productRepository.GetByIdAsync(id, cancellationToken);
 
 
             if (product is null)
@@ -55,6 +56,32 @@ public sealed class ProductService : IProductService
             product.ProductCategories = [.. productCategories];
 
             return product.ToResponseDTO();
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
+
+    public async Task<Result<PaginatedResponseDTO<ProductResponseDTO>>> GetLowStockProductsAsync(ProductFilterRequestDTO request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var errors = FilterDTOValidation.Validate(
+                request.StockThreshold,
+                request.PageSize,
+                request.PageNumber,
+                request.Name,
+                request.Category);
+
+            if (errors.Any())
+            {
+                return Result.Fail(errors);
+            }
+
+            var productsFiltered = await _productRepository.GetLowStockProductsAsync(request, cancellationToken);
+
+            return Result.Ok(productsFiltered.ToResponseDTO(request.PageSize, request.PageNumber));
         }
         catch (Exception)
         {
@@ -94,7 +121,7 @@ public sealed class ProductService : IProductService
                 return Result.Fail(product.Errors);
             }
 
-            var productId = await _productRepository.CreateProductAsync(product.Value, cancellationToken);
+            var productId = await _productRepository.CreateAsync(product.Value, cancellationToken);
 
             foreach (var categoryId in request.Categories)
             {
@@ -146,20 +173,87 @@ public sealed class ProductService : IProductService
         }
     }
 
-    public async Task<Result<bool>> UpdateAsync(UpdateProductRequestDTO request, CancellationToken cancellationToken = default)
+    public async Task<Result<bool>> UpdateAsync(Guid id, UpdateProductRequestDTO request, CancellationToken cancellationToken = default)
     {
         try
         {
-            var product = await _productRepository.GetProductByIdAsync(request.Id, cancellationToken);
+            var existingProduct = await _productRepository.GetByIdAsync(id, cancellationToken);
+
+            if (existingProduct is null)
+            {
+                return Result.Fail(ProductErrorFactory.ProductNotFoundById(id));
+            }
+
+            var product = Product.From(
+            existingProduct.Id,
+            existingProduct.Name,
+            existingProduct.Description,
+            existingProduct.Price,
+            existingProduct.CurrencyCode,
+            existingProduct.Stock,
+            existingProduct.ImageUrl,
+            existingProduct.Status.ToProductStatusDomain());
+
+            if (product.IsFailure)
+            {
+                return Result.Fail(product.Errors);
+            }
+
+            bool isChanged = false;
+
+            isChanged |= product.Value.UpdateName(request.Name);
+
+            isChanged |= product.Value.UpdateDescription(request.Description);
+
+            isChanged |= product.Value.UpdatePrice(request.Price, request.CurrencyCode);
+
+            isChanged |= product.Value.UpdateStock(request.Stock);
+
+            isChanged |= product.Value.UpdateImageUrl(request.ImageUrl);
+
+            isChanged |= product.Value.UpdateStatus(request.Status.ToProductStatusDomain());
+
+            foreach (var category in request.Categories)
+            {
+                isChanged |= product.Value.UpdateCategories([.. category.CategoryIds
+                .Select(categoryId => new ProductCategory(id, categoryId))]);
+            }
+
+            if (isChanged)
+            {
+                await _productRepository.UpdateProductAsync(product.Value, cancellationToken);
+                await _productRepository.DeleteProductCategoryAsync(id,
+                [.. existingProduct.Categories.Select(c => c.CategoryId)], cancellationToken);
+
+                foreach (var category in product.Value.ProductCategories)
+                {
+                    await _productRepository.CreateProductCategoryAsync(category, cancellationToken);
+                }
+
+                await _unitOfWork.CommitAsync(cancellationToken);
+            }
+
+            return Result.Ok(true);
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var product = await _productRepository.GetByIdAsync(id, cancellationToken);
 
             if (product is null)
             {
-                return Result.Fail(ProductErrorFactory.ProductNotFoundById(request.Id));
+                return Result.Fail(ProductErrorFactory.ProductNotFoundById(id));
             }
 
-            var updatedProduct = product.ToDomain();
-
-            await _productRepository.UpdateProductAsync(updatedProduct, cancellationToken);
+            await _productRepository.DeleteAsync(id, cancellationToken);
 
             await _unitOfWork.CommitAsync(cancellationToken);
 

@@ -4,6 +4,7 @@ using Dapper;
 
 using EcomifyAPI.Application.Contracts.Repositories;
 using EcomifyAPI.Contracts.DapperModels;
+using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Domain.Entities;
 using EcomifyAPI.Domain.ValueObjects;
 
@@ -26,7 +27,7 @@ public class ProductRepository : IProductRepository
         _transaction = transaction;
     }
 
-    public async Task<IEnumerable<ProductMapping>> GetProductsAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<ProductMapping>> GetAsync(CancellationToken cancellationToken = default)
     {
         const string query = @"
             SELECT 
@@ -75,7 +76,7 @@ public class ProductRepository : IProductRepository
         return [.. productDictionary.Values];
     }
 
-    public async Task<ProductMapping?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<ProductMapping?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string query = @"
         SELECT 
@@ -124,6 +125,83 @@ public class ProductRepository : IProductRepository
         return products.FirstOrDefault();
     }
 
+    public async Task<FilteredResponseMapping<ProductMapping>> GetLowStockProductsAsync(ProductFilterRequestDTO request, CancellationToken cancellationToken = default)
+    {
+        string query = @"
+            SELECT 
+                p.id,
+                p.name,
+                p.description,
+                p.price,
+                p.currency_code AS currencyCode,
+                p.image_url AS imageUrl,
+                p.status,
+                p.stock,
+                c.id AS categoryId,
+                c.name AS categoryName,
+                c.description AS categoryDescription,
+                COUNT(*) OVER() AS totalCount
+            FROM products p
+            LEFT JOIN product_categories pc ON p.id = pc.product_id
+            LEFT JOIN categories c ON pc.category_id = c.id
+            WHERE p.stock <= @StockThreshold
+        ";
+
+        if (!string.IsNullOrWhiteSpace(request.Name))
+        {
+            query += " AND p.name ILIKE @Name";
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Category))
+        {
+            query += " AND c.name ILIKE @Category";
+        }
+
+        query += " ORDER BY p.stock ASC";
+
+        query += " LIMIT @PageSize OFFSET @Offset";
+
+
+        var parameters = new
+        {
+            request.StockThreshold,
+            request.PageSize,
+            request.PageNumber,
+            Offset = (request.PageNumber - 1) * request.PageSize,
+            Name = string.IsNullOrWhiteSpace(request.Name) ? null : $"%{request.Name}%",
+            Category = string.IsNullOrWhiteSpace(request.Category) ? null : $"%{request.Category}%"
+        };
+
+        var productDictionary = new Dictionary<Guid, ProductMapping>();
+        long totalCount = 0;
+
+        var products = await Connection.QueryAsync<ProductMapping, CategoryMapping, long, ProductMapping>(
+        new CommandDefinition(query, parameters, cancellationToken: cancellationToken, transaction: Transaction),
+        (product, category, count) =>
+        {
+            totalCount = count;
+
+            if (!productDictionary.TryGetValue(product.Id, out var existingProduct))
+            {
+                existingProduct = product;
+                existingProduct.ProductCategories = [];
+                existingProduct.Categories = [];
+                productDictionary[existingProduct.Id] = existingProduct;
+            }
+
+            if (category is not null && !existingProduct.Categories.Any(c => c.CategoryId == category.CategoryId))
+            {
+                existingProduct.Categories.Add(category);
+            }
+
+            return existingProduct;
+        },
+        splitOn: "categoryId,totalCount"
+      );
+
+        return new FilteredResponseMapping<ProductMapping>([.. productDictionary.Values], totalCount);
+    }
+
     public async Task<CategoryMapping?> GetCategoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string query = @"
@@ -150,7 +228,21 @@ public class ProductRepository : IProductRepository
 
         return categories;
     }
-    public async Task<Guid> CreateProductAsync(Product product, CancellationToken cancellationToken = default)
+
+    public async Task<IEnumerable<ProductCategoryMapping>> GetProductCategoryByIdAsync(Guid productId, CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+            SELECT * FROM product_categories WHERE product_id = @ProductId
+            ";
+
+        var productCategory = await Connection.QueryAsync<ProductCategoryMapping>(
+            new CommandDefinition(query, new { ProductId = productId }, cancellationToken: cancellationToken, transaction: Transaction)
+        );
+
+        return productCategory;
+    }
+
+    public async Task<Guid> CreateAsync(Product product, CancellationToken cancellationToken = default)
     {
         const string query = @"
             INSERT INTO products (name, description, price, currency_code, stock, image_url, status)
@@ -172,19 +264,6 @@ public class ProductRepository : IProductRepository
         );
 
         return productId;
-    }
-
-    public async Task<IEnumerable<ProductCategoryMapping>> GetProductCategoryByIdAsync(Guid productId, CancellationToken cancellationToken = default)
-    {
-        const string query = @"
-            SELECT * FROM product_categories WHERE product_id = @ProductId
-            ";
-
-        var productCategory = await Connection.QueryAsync<ProductCategoryMapping>(
-            new CommandDefinition(query, new { ProductId = productId }, cancellationToken: cancellationToken, transaction: Transaction)
-        );
-
-        return productCategory;
     }
 
     public async Task<bool> CreateCategoryAsync(Category category, CancellationToken cancellationToken = default)
@@ -235,7 +314,7 @@ public class ProductRepository : IProductRepository
             price = @Price, 
             stock = @Stock, 
             image_url = @ImageUrl, 
-            status = @Status, 
+            status = @Status
             WHERE id = @Id
             ";
 
@@ -245,7 +324,7 @@ public class ProductRepository : IProductRepository
                 updatedProduct.Id,
                 updatedProduct.Name,
                 updatedProduct.Description,
-                updatedProduct.Price,
+                Price = updatedProduct.Price.Amount,
                 updatedProduct.Stock,
                 updatedProduct.ImageUrl,
                 updatedProduct.Status,
@@ -295,5 +374,35 @@ public class ProductRepository : IProductRepository
         ));
 
         return result > 0;
+    }
+
+    public async Task DeleteProductCategoryAsync(Guid productId, IReadOnlyList<Guid> categoryIds, CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+            DELETE FROM product_categories WHERE product_id = @ProductId 
+            AND category_id NOT IN (SELECT unnest(@CategoryIds))
+            ";
+
+        await Connection.ExecuteAsync(
+            new CommandDefinition(query,
+            new
+            {
+                ProductId = productId,
+                CategoryIds = categoryIds
+            },
+            cancellationToken: cancellationToken,
+            transaction: Transaction)
+        );
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+            DELETE FROM products WHERE id = @Id
+            ";
+
+        await Connection.ExecuteAsync(
+            new CommandDefinition(query, new { Id = id }, cancellationToken: cancellationToken, transaction: Transaction)
+        );
     }
 }

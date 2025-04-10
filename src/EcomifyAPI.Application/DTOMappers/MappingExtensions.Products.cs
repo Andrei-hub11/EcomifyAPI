@@ -94,6 +94,17 @@ public static class MappingExtensionsProducts
         return result.Value;
     }
 
+    public static PaginatedResponseDTO<ProductResponseDTO> ToResponseDTO(this FilteredResponseMapping<ProductMapping> products,
+    int pageSize, int pageNumber)
+    {
+        return new PaginatedResponseDTO<ProductResponseDTO>(
+            products.Items.ToResponseDTO(),
+            pageSize,
+            pageNumber,
+            products.TotalCount
+            );
+    }
+
     public static ProductResponseDTO ToResponseDTO(this Product product, List<CategoryMapping> categories)
     {
         return new ProductResponseDTO(product.Id,
