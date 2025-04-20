@@ -22,8 +22,6 @@ public class TokenTests : IAsyncLifetime
     private readonly string _baseUrl = "https://localhost:7037/api/v1";
     private readonly ITestOutputHelper _output;
     private string _userId = string.Empty;
-    private string _accessToken = string.Empty;
-    private string _refreshToken = string.Empty;
 
     public TokenTests(AppHostFixture fixture, ITestOutputHelper output)
     {
@@ -50,8 +48,6 @@ public class TokenTests : IAsyncLifetime
             });
 
         _userId = result!.User.Id;
-        _accessToken = result.AccessToken;
-        _refreshToken = result.RefreshToken;
     }
 
     [Fact]
@@ -60,7 +56,10 @@ public class TokenTests : IAsyncLifetime
         // Arrange
         await AuthenticateUser();
 
-        var request = new UpdateAccessTokenRequestDTO(_refreshToken);
+        var accessToken = _fixture.GetCookies().GetCookies(new Uri(_baseUrl))["access_token"]!.Value;
+        var refreshToken = _fixture.GetCookies().GetCookies(new Uri(_baseUrl))["refresh_token"]!.Value;
+
+        var request = new UpdateAccessTokenRequestDTO(refreshToken);
 
         // Remove access token to simulate expired token
         _fixture.ClearAccessToken(new Uri(_baseUrl));
@@ -73,7 +72,7 @@ public class TokenTests : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         result.ShouldNotBeNull();
         result.AccessToken.ShouldNotBeNullOrEmpty();
-        result.AccessToken.ShouldNotBe(_accessToken); // New token should be different
+        result.AccessToken.ShouldNotBe(accessToken); // New token should be different
     }
 
     [Fact]

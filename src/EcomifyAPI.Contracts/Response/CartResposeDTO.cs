@@ -6,6 +6,6 @@ public sealed record CartResposeDTO(
     Guid Id,
     string UserId,
     List<CartItemResponseDTO> Items,
-    CurrencyDTO TotalAmount,
+    MoneyDTO TotalAmount,
     DateTime CreatedAt
 );

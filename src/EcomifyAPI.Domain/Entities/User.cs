@@ -72,6 +72,16 @@ public sealed class User
             errors.Add(ValidationError.Create("UserName cannot be empty", "ERR_USERNAME_EMPTY", "UserName"));
         }
 
+        if (name.Contains(' '))
+        {
+            errors.Add(ValidationError.Create("UserName cannot contain spaces", "ERR_SPACES_IN_USERNAME", "UserName"));
+        }
+
+        if (name.Length < 3)
+        {
+            errors.Add(ValidationError.Create("UserName must be at least 3 characters long", "ERR_USERNAME_TOO_SHORT", "UserName"));
+        }
+
         if (name.Length > 120)
         {
             errors.Add(ValidationError.Create("UserName cannot be longer than 120 characters", "ERR_USERNAME_TOO_LONG", "UserName"));
@@ -101,7 +111,18 @@ public sealed class User
             {
                 errors.Add(ValidationError.Create("UserName cannot be empty", "ERR_USERNAME_EMPTY", "UserName"));
             }
-            else if (newUsername.Length > 120)
+
+            if (newUsername.Contains(' '))
+            {
+                errors.Add(ValidationError.Create("UserName cannot contain spaces", "ERR_SPACES_IN_USERNAME", "UserName"));
+            }
+
+            if (newUsername.Length < 3)
+            {
+                errors.Add(ValidationError.Create("UserName must be at least 3 characters long", "ERR_USERNAME_TOO_SHORT", "UserName"));
+            }
+
+            if (newUsername.Length > 120)
             {
                 errors.Add(ValidationError.Create("UserName cannot be longer than 120 characters", "ERR_USERNAME_TOO_LONG", "UserName"));
             }
@@ -128,8 +149,8 @@ public sealed class User
             return Result.Fail(errors);
         }
 
-        UserName = newUsername ?? UserName;
-        Email = string.IsNullOrWhiteSpace(newEmail) ? Email : new Email(newEmail);
+        UserName = string.IsNullOrWhiteSpace(newUsername) ? UserName : newUsername;
+        /*  Email = string.IsNullOrWhiteSpace(newEmail) ? Email : new Email(newEmail); */
         ProfileImagePath = string.IsNullOrWhiteSpace(newProfileImagePath) ? ProfileImagePath : new ProfileImagePath(newProfileImagePath);
 
         return true;

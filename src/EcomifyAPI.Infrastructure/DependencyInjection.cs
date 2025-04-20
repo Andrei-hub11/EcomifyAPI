@@ -58,6 +58,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<ICartRepository, CartRepository>();
 
+        services.AddScoped<IDiscountRepository, DiscountRepository>();
+
         services.AddScoped<IPaymentRepository, PaymentRepository>();
 
         services.AddScoped<IEmailSender, EmailSender>();

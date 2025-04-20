@@ -9,6 +9,8 @@ public class OrderMapping
     public DateTime OrderDate { get; set; }
     public OrderStatusDTO Status { get; set; }
     public decimal TotalAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal TotalWithDiscount { get; set; }
     public string CurrencyCode { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime CompletedAt { get; set; }

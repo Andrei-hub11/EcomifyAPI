@@ -11,7 +11,13 @@ internal static class MainClaimsExtensions
         Claim? userIdClaim = principal?.FindFirst(ClaimTypes.NameIdentifier);
 
         return userIdClaim == null
-            ? throw new UnauthorizeUserAccessException("O contexto do usuário não está disponível")
+            ? throw new UnauthorizeUserAccessException("The user context is not available")
             : userIdClaim.Value;
+    }
+
+    public static string GetEmail(this ClaimsPrincipal? principal)
+    {
+        Claim? emailClaim = principal?.FindFirst(ClaimTypes.Email);
+        return emailClaim == null ? throw new UnauthorizeUserAccessException("The user context is not available") : emailClaim.Value;
     }
 }

@@ -21,11 +21,11 @@ public class LoggerHelper<T> : ILoggerHelper<T>
         }
     }
 
-    public void LogInformation(string message)
+    public void LogInformation(string message, params object[] args)
     {
         if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogInformation("{Message}", message);
+            _logger.LogInformation(message, args);
         }
     }
 

@@ -12,6 +12,8 @@ public sealed class Order
     public Guid Id { get; private set; }
     public string UserId { get; private set; } = string.Empty;
     public Money TotalAmount => CalculateTotalAmount();
+    public Money TotalWithDiscount { get; private set; }
+    public decimal DiscountAmount { get; private set; }
     public DateTime OrderDate { get; private set; }
     public OrderStatusEnum Status { get; private set; }
     public DateTime CreatedAt { get; private set; }
@@ -31,7 +33,9 @@ public sealed class Order
         DateTime? completedAt,
         Address shippingAddress,
         Address billingAddress,
-        List<OrderItem> orderItems)
+        List<OrderItem> orderItems,
+        decimal discountAmount = 0,
+        Money? totalWithDiscount = null)
     {
         Id = id;
         UserId = userId;
@@ -41,7 +45,29 @@ public sealed class Order
         CompletedAt = completedAt;
         ShippingAddress = shippingAddress;
         BillingAddress = billingAddress;
+        DiscountAmount = discountAmount;
         _items.AddRange(orderItems);
+
+        if (totalWithDiscount is not null)
+        {
+            TotalWithDiscount = totalWithDiscount.Value;
+        }
+        else
+        {
+            // Initialize TotalWithDiscount to be the same as TotalAmount
+            var totalAmount = CalculateTotalAmount();
+            decimal finalAmount = TotalAmount.Amount - discountAmount;
+
+            if (finalAmount < 0)
+            {
+                finalAmount = 0;
+            }
+
+            TotalWithDiscount = finalAmount > 0
+                ? new Money(totalAmount.Code, finalAmount)
+                : Money.Zero(totalAmount.Code);
+
+        }
     }
 
     public static Result<Order> Create(
@@ -52,7 +78,8 @@ public sealed class Order
         DateTime? completedAt,
         Address shippingAddress,
         Address billingAddress,
-        Guid? id = null
+        Guid? id = null,
+        decimal discountAmount = 0
         )
     {
         var errors = ValidateOrder(userId, orderDate, status, id);
@@ -69,7 +96,8 @@ public sealed class Order
         completedAt,
         shippingAddress,
         billingAddress,
-        []);
+        [],
+        discountAmount);
     }
 
     public static Result<Order> From(
@@ -81,7 +109,9 @@ public sealed class Order
         DateTime? completedAt,
         Address shippingAddress,
         Address billingAddress,
-        List<OrderItem> items)
+        List<OrderItem> items,
+        decimal discountAmount = 0,
+        Money? totalWithDiscount = null)
     {
         var errors = ValidateOrder(userId, orderDate, status, id);
 
@@ -99,7 +129,9 @@ public sealed class Order
             completedAt,
             shippingAddress,
             billingAddress,
-            items);
+            items,
+            discountAmount,
+            totalWithDiscount);
     }
 
     private static ReadOnlyCollection<ValidationError> ValidateOrder(
@@ -134,12 +166,38 @@ public sealed class Order
         return errors.AsReadOnly();
     }
 
+    public void ApplyDiscount(decimal discountAmount)
+    {
+        if (discountAmount < 0)
+        {
+            throw new ArgumentException("Discount amount cannot be negative", nameof(discountAmount));
+        }
+
+        if (discountAmount > TotalAmount.Amount)
+        {
+            discountAmount = TotalAmount.Amount;
+        }
+
+        DiscountAmount = discountAmount;
+
+        var totalAmount = CalculateTotalAmount();
+        decimal finalAmount = totalAmount.Amount - discountAmount;
+
+        if (finalAmount < 0)
+        {
+            finalAmount = 0;
+        }
+
+        TotalWithDiscount = finalAmount > 0
+            ? new Money(totalAmount.Code, finalAmount)
+            : Money.Zero(totalAmount.Code);
+    }
 
     public void AddItem(Product product, int quantity, Money unitPrice)
     {
-        if (Status != OrderStatusEnum.Created)
+        if (Status != OrderStatusEnum.Created && Status != OrderStatusEnum.Confirmed)
         {
-            throw new InvalidOperationException("Order is alredy being processed");
+            throw new InvalidOperationException("Order is already being processed");
         }
 
         var item = _items.FirstOrDefault(i => i.ProductId == product.Id);
@@ -148,16 +206,31 @@ public sealed class Order
         {
             item.UpdateQuantity(item.Quantity + quantity);
         }
+        else
+        {
+            _items.Add(new OrderItem(Guid.NewGuid(), product.Id, quantity, unitPrice));
+        }
 
-        _items.Add(new OrderItem(Guid.NewGuid(), product.Id, quantity, unitPrice));
+        // Recalculate total with discount
+
+        decimal finalAmount = TotalAmount.Amount - DiscountAmount;
+
+        if (finalAmount < 0)
+        {
+            finalAmount = 0;
+        }
+
+        TotalWithDiscount = finalAmount > 0
+            ? new Money(TotalAmount.Code, finalAmount)
+            : Money.Zero(TotalAmount.Code);
     }
 
 
     public void RemoveItem(Guid productId)
     {
-        if (Status != OrderStatusEnum.Created)
+        if (Status != OrderStatusEnum.Created && Status != OrderStatusEnum.Confirmed)
         {
-            throw new InvalidOperationException("Order is alredy being processed");
+            throw new InvalidOperationException("Order is already being processed");
         }
 
         var item = _items.FirstOrDefault(i => i.ProductId == productId);
@@ -168,6 +241,18 @@ public sealed class Order
         }
 
         _items.Remove(item);
+
+        // Recalculate total with discount
+        decimal finalAmount = TotalAmount.Amount - DiscountAmount;
+
+        if (finalAmount < 0)
+        {
+            finalAmount = 0;
+        }
+
+        TotalWithDiscount = finalAmount > 0
+            ? new Money(TotalAmount.Code, finalAmount)
+            : Money.Zero(TotalAmount.Code);
     }
 
     public void ProcessPayment()
@@ -254,6 +339,11 @@ public sealed class Order
 
     private Money CalculateTotalAmount()
     {
+        if (_items.Count == 0)
+        {
+            return Money.Zero("BRL");
+        }
+
         var totalAmount = _items.Sum(i => i.TotalPrice.Amount);
         var currencyCode = _items.First().TotalPrice.Code;
 

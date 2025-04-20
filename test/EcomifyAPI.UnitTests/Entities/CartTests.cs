@@ -1,4 +1,5 @@
 using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
 using EcomifyAPI.UnitTests.Builders;
 
@@ -56,6 +57,8 @@ public class CartTests
         cart.UpdatedAt.ShouldBeNull();
         cart.Items.ShouldNotBeNull();
         cart.Items.ShouldNotBeEmpty();
+        cart.Discounts.ShouldNotBeNull();
+        cart.Discounts.ShouldBeEmpty();
     }
 
     [Fact]
@@ -141,4 +144,66 @@ public class CartTests
         cart.Items.ShouldBeEmpty();
     }
 
+    [Fact]
+    public void From_Should_Fail_When_Duplicate_Discounts_Exist()
+    {
+        // Arrange
+        var discountId = Guid.NewGuid();
+        var discounts = new List<CartDiscount>
+        {
+            new(discountId, new Money("BRL", 10), DiscountType.Percentage, DateTime.UtcNow, DateTime.UtcNow.AddDays(10)),
+            new(discountId, new Money("BRL", 10), DiscountType.Percentage, DateTime.UtcNow, DateTime.UtcNow.AddDays(10))
+        };
+
+        // Act
+        var result = _builder.WithDiscounts(discounts).BuildFrom([]);
+
+        // Assert
+        result.IsFailure.ShouldBeTrue();
+        result.Errors.Select(e => e.Code).ShouldContain("ERR_DUPLICATE_DISC");
+    }
+
+    [Fact]
+    public void UpdateTotalWithDiscount_ShouldSetTotalWithDiscountToZero_WhenNoDiscounts()
+    {
+        // Arrange
+        var items = new List<CartItem>
+        {
+            new(Guid.NewGuid(), 2, new Money("BRL", 50))
+        };
+        var result = _builder.BuildFrom(items);
+        result.IsFailure.ShouldBeFalse();
+        var cart = result.Value;
+
+        // Act
+        cart.UpdateTotalWithDiscount(0);
+
+        // Assert
+        cart.TotalAmount.Amount.ShouldBe(100);
+        cart.TotalWithDiscount.Amount.ShouldBe(100);
+    }
+
+    [Fact]
+    public void UpdateTotalWithDiscount_ShouldCalculateCorrectly_WithDiscount()
+    {
+        // Arrange
+        var items = new List<CartItem>
+        {
+            new(Guid.NewGuid(), 2, new Money("BRL", 50))
+        };
+        var discounts = new List<CartDiscount>
+        {
+            new(Guid.NewGuid(), new Money("BRL", 20), DiscountType.Fixed, DateTime.UtcNow, DateTime.UtcNow.AddDays(10))
+        };
+        var result = _builder.WithDiscounts(discounts).BuildFrom(items);
+        result.IsFailure.ShouldBeFalse();
+        var cart = result.Value;
+
+        // Act
+        cart.UpdateTotalWithDiscount(20);
+
+        // Assert
+        cart.TotalAmount.Amount.ShouldBe(100);
+        cart.TotalWithDiscount.Amount.ShouldBe(80);
+    }
 }

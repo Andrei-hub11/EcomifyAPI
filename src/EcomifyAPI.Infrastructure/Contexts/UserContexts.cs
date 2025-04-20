@@ -17,9 +17,17 @@ internal sealed class UserContexts : IUserContext
 
     public string UserId =>
         _httpContextAccessor.HttpContext?.User?.GetUserId() ??
-        throw new UnauthorizeUserAccessException("O contexto do usuário não está disponível");
+        throw new UnauthorizeUserAccessException("The user context is not available");
+
+    public string Email =>
+        _httpContextAccessor.HttpContext?.User?.GetEmail() ??
+        throw new UnauthorizeUserAccessException("The user context is not available");
 
     public bool IsAuthenticated =>
         _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ??
-        throw new UnauthorizeUserAccessException("O contexto do usuário não está disponível");
+        throw new UnauthorizeUserAccessException("The user context is not available");
+
+    public bool IsAdmin =>
+        _httpContextAccessor.HttpContext?.User?.IsInRole("Admin") ??
+        throw new UnauthorizeUserAccessException("The user context is not available");
 }

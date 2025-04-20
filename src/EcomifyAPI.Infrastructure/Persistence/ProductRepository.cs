@@ -205,7 +205,8 @@ public class ProductRepository : IProductRepository
     public async Task<CategoryMapping?> GetCategoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string query = @"
-            SELECT * FROM categories WHERE id = @Id
+            SELECT c.id AS categoryId, c.name AS categoryName, c.description AS categoryDescription 
+            FROM categories c WHERE c.id = @Id
             ";
 
         var category = await Connection.QueryAsync<CategoryMapping>(

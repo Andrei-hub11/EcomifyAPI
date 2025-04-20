@@ -2,7 +2,7 @@
 
 public sealed record UpdateUserRequestDTO(
     string NewUserName,
-    string NewEmail,
+    /* string NewEmail, */
     string NewPassword,
     string NewProfileImage
   );

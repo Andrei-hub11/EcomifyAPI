@@ -10,6 +10,7 @@ public class CartBuilder
     private string _userId = "user123";
     private DateTime _createdAt = DateTime.UtcNow;
     private DateTime? _updatedAt = null;
+    private List<CartDiscount> _discounts = [];
 
 
     public CartBuilder WithId(Guid? id)
@@ -36,6 +37,12 @@ public class CartBuilder
         return this;
     }
 
+    public CartBuilder WithDiscounts(List<CartDiscount> discounts)
+    {
+        _discounts = discounts;
+        return this;
+    }
+
 
 
 
@@ -46,6 +53,6 @@ public class CartBuilder
 
     public Result<Cart> BuildFrom(List<CartItem> items)
     {
-        return Cart.From(_id ?? Guid.NewGuid(), _userId, _createdAt, _updatedAt, items);
+        return Cart.From(_id ?? Guid.NewGuid(), _userId, _createdAt, _updatedAt, items, _discounts);
     }
 }

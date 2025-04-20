@@ -21,7 +21,6 @@ public class CartTests : IAsyncLifetime
     private readonly string _baseUrl = "https://localhost:7037/api/v1";
     private readonly ITestOutputHelper _output;
     private string _adminId = string.Empty;
-    private string _accessToken = string.Empty;
 
     public CartTests(AppHostFixture fixture, ITestOutputHelper output)
     {
@@ -48,7 +47,6 @@ public class CartTests : IAsyncLifetime
             });
 
         _adminId = result!.User.Id;
-        _accessToken = result.AccessToken;
     }
 
     [Fact]

@@ -15,6 +15,8 @@ public class OrderBuilder
     private readonly DateTime? _completedAt = null;
     private Address _shippingAddress;
     private Address _billingAddress;
+    private decimal _discountAmount = 0;
+    private string _currencyCode = "USD";
 
     public OrderBuilder()
     {
@@ -57,6 +59,24 @@ public class OrderBuilder
         return this;
     }
 
+    public OrderBuilder AsCreated()
+    {
+        _status = OrderStatusEnum.Created;
+        return this;
+    }
+
+    public OrderBuilder AsConfirmed()
+    {
+        _status = OrderStatusEnum.Confirmed;
+        return this;
+    }
+
+    public OrderBuilder AsProcessing()
+    {
+        _status = OrderStatusEnum.Processing;
+        return this;
+    }
+
     public OrderBuilder WithShippingAddress(Address address)
     {
         _shippingAddress = address;
@@ -69,9 +89,21 @@ public class OrderBuilder
         return this;
     }
 
+    public OrderBuilder WithDiscountAmount(decimal discountAmount)
+    {
+        _discountAmount = discountAmount;
+        return this;
+    }
+
+    public OrderBuilder WithCurrencyCode(string currencyCode)
+    {
+        _currencyCode = currencyCode;
+        return this;
+    }
+
     public Result<Order> Build()
     {
-        return Order.Create(
+        var order = Order.Create(
             _userId,
             _orderDate,
             _status,
@@ -79,7 +111,44 @@ public class OrderBuilder
             _completedAt,
             _shippingAddress,
             _billingAddress,
-            _id
+            _id,
+            _discountAmount
             );
+
+        return order;
+    }
+
+    // Helper method to create a test order with items
+    public Result<Order> BuildWithItems(int numberOfItems = 1, decimal pricePerItem = 100m)
+    {
+        var order = Build();
+
+        if (order.IsFailure)
+        {
+            return order;
+        }
+
+        var product = Product.Create(
+            "Test Product",
+            "Test Description",
+            pricePerItem,
+            _currencyCode,
+            100, // stock
+            "http://example.com/image.jpg",
+            ProductStatusEnum.Active,
+            Guid.NewGuid()
+        );
+
+        if (product.IsFailure)
+        {
+            return Result.Fail(product.Errors);
+        }
+
+        for (int i = 0; i < numberOfItems; i++)
+        {
+            order.Value.AddItem(product.Value, 1, new Money(_currencyCode, pricePerItem));
+        }
+
+        return order;
     }
 }

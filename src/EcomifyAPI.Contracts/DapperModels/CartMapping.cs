@@ -9,4 +9,5 @@ public class CartMapping
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public List<CartItemMapping> Items { get; set; } = [];
+    public List<DiscountCartMapping> Discounts { get; set; } = [];
 }

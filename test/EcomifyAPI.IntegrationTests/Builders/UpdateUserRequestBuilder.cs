@@ -5,7 +5,7 @@ namespace EcomifyAPI.IntegrationTests.Builders;
 public class UpdateUserRequestBuilder
 {
     private string _userName = "default";
-    private string _email = "default@test.com";
+    /*  private string _email = "default@test.com"; */
     private string _password = "Default123!@#";
     private string _profileImage = "";
 
@@ -15,11 +15,11 @@ public class UpdateUserRequestBuilder
         return this;
     }
 
-    public UpdateUserRequestBuilder WithEmail(string email)
-    {
-        _email = email;
-        return this;
-    }
+    /*     public UpdateUserRequestBuilder WithEmail(string email)
+        {
+            _email = email;
+            return this;
+        } */
 
     public UpdateUserRequestBuilder WithPassword(string password)
     {
@@ -35,6 +35,6 @@ public class UpdateUserRequestBuilder
 
     public UpdateUserRequestDTO Build()
     {
-        return new UpdateUserRequestDTO(_userName, _email, _password, _profileImage);
+        return new UpdateUserRequestDTO(_userName, _password, _profileImage);
     }
 }

@@ -1,4 +1,5 @@
-﻿using EcomifyAPI.Application.Contracts.Data;
+﻿using EcomifyAPI.Application.Contracts.Contexts;
+using EcomifyAPI.Application.Contracts.Data;
 using EcomifyAPI.Application.Contracts.Email;
 using EcomifyAPI.Application.Contracts.Logging;
 using EcomifyAPI.Application.Contracts.Repositories;
@@ -6,14 +7,17 @@ using EcomifyAPI.Application.Contracts.Services;
 using EcomifyAPI.Application.Contracts.TokenJWT;
 using EcomifyAPI.Application.Contracts.UtillityFactories;
 using EcomifyAPI.Application.DTOMappers;
+using EcomifyAPI.Common.Helpers;
 using EcomifyAPI.Common.Utils.Errors;
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Common.Utils.ResultError;
 using EcomifyAPI.Common.Validation;
+using EcomifyAPI.Contracts.DapperModels;
 using EcomifyAPI.Contracts.Models;
 using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
 using EcomifyAPI.Domain.Entities;
+using EcomifyAPI.Domain.ValueObjects;
 
 using Microsoft.Extensions.Configuration;
 
@@ -29,6 +33,7 @@ public class AccountService : IAccountService
     private readonly IImagesService _imagesService;
     private readonly IEmailSender _emailSender;
     private readonly IConfiguration _configuration;
+    private readonly IUserContext _userContext;
     private readonly IAccountServiceErrorHandler _accountServiceErrorHandler;
     private readonly ILoggerHelper<AccountService> _logger;
 
@@ -40,6 +45,7 @@ public class AccountService : IAccountService
         IImagesService imagesService,
         IEmailSender emailSender,
         IConfiguration configuration,
+        IUserContext userContext,
         IAccountServiceErrorHandler accountServiceErrorHandler,
         ILoggerHelper<AccountService> logger
     )
@@ -52,11 +58,12 @@ public class AccountService : IAccountService
         _imagesService = imagesService;
         _emailSender = emailSender;
         _configuration = configuration;
+        _userContext = userContext;
         _accountServiceErrorHandler = accountServiceErrorHandler;
         _logger = logger;
     }
 
-    public async Task<Result<UserResponseDTO>> GetAsync(
+    public async Task<Result<AuthResponseDTO>> GetAsync(
         string accessToken,
         CancellationToken cancellationToken
     )
@@ -70,14 +77,14 @@ public class AccountService : IAccountService
                 );
             }
 
-            var userInfo = await _keycloakService.GetUserInfoAsync(accessToken, cancellationToken);
+            var userInfo = await _userRepository.GetUserByEmailAsync(_userContext.Email, cancellationToken);
 
-            if (userInfo.IsFailure)
+            if (userInfo == null)
             {
-                return Result.Fail(userInfo.Errors);
+                return Result.Fail(UserErrorFactory.UserNotFoundByEmail(_userContext.Email));
             }
 
-            return userInfo.Value.ToResponseDTO();
+            return userInfo.ToResponseDTO();
         }
         catch (Exception)
         {
@@ -85,7 +92,7 @@ public class AccountService : IAccountService
         }
     }
 
-    public async Task<Result<UserResponseDTO>> GetByIdAsync(
+    public async Task<Result<AuthResponseDTO>> GetByIdAsync(
         string userId,
         CancellationToken cancellationToken
     )
@@ -179,7 +186,7 @@ public class AccountService : IAccountService
             _cookieService.SetCookie("access_token", authResult.Value.AccessToken, 15);
             _cookieService.SetCookie("refresh_token", authResult.Value.RefreshToken, 14);
 
-            return authResult;
+            return authResult.Value.ToResponseDTO();
         }
         catch (Exception)
         {
@@ -259,7 +266,7 @@ public class AccountService : IAccountService
             _cookieService.SetCookie("access_token", authResult.Value.AccessToken, 15);
             _cookieService.SetCookie("refresh_token", authResult.Value.RefreshToken, 14);
 
-            return authResult;
+            return authResult.Value.ToResponseDTO();
         }
         catch (Exception)
         {
@@ -315,10 +322,82 @@ public class AccountService : IAccountService
             _cookieService.SetCookie("access_token", auth.Value.AccessToken, 15);
             _cookieService.SetCookie("refresh_token", auth.Value.RefreshToken, 14);
 
-            return auth.Value;
+            return auth.Value.ToResponseDTO();
         }
         catch (Exception)
         {
+            throw;
+        }
+    }
+
+    public async Task<Result<AddressResponseDTO>> GetOrCreateUserAddressAsync(
+        string userId,
+        CreateAddressRequestDTO request,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var user = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
+
+            if (user == null)
+            {
+                return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
+            }
+
+            var userAddress = await _userRepository.GetUserAddressByFieldsAsync(
+                userId,
+                request.Address.Street,
+                request.Address.Number,
+                request.Address.City,
+                request.Address.State,
+                request.Address.ZipCode,
+                request.Address.Country,
+                request.Address.Complement,
+                cancellationToken
+            );
+
+            if (userAddress != null)
+            {
+                _logger.LogInformation("User address found for user {userId}. Returning address.", userId);
+                return new AddressResponseDTO(
+                    userAddress.Id,
+                    userAddress.Street,
+                    userAddress.Number,
+                    userAddress.City,
+                    userAddress.State,
+                    userAddress.ZipCode,
+                    userAddress.Country,
+                    userAddress.Complement
+                );
+            }
+
+            var address = new Address(
+                request.Address.Street,
+                request.Address.Number,
+                request.Address.City,
+                request.Address.State,
+                request.Address.ZipCode,
+                request.Address.Country,
+                request.Address.Complement
+            );
+
+            var addressId = await _userRepository.CreateUserAddress(address, user.KeycloakId, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return new AddressResponseDTO(
+            addressId,
+            address.Street,
+            address.Number,
+            address.City,
+            address.State,
+            address.ZipCode,
+            address.Country,
+            address.Complement);
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync(cancellationToken);
             throw;
         }
     }
@@ -417,119 +496,127 @@ public class AccountService : IAccountService
         }
     }
 
-    //public async Task<Result<UserResponseDTO>> UpdateUserAsync(
-    //    string userId,
-    //    UpdateUserRequestDTO request,
-    //    CancellationToken cancellationToken
-    //)
-    //{
-    //    ApplicationUserMapping? userExisting = default;
-    //    bool isRollback = true;
+    public async Task<Result<AuthResponseDTO>> UpdateAsync(
+       string userId,
+       UpdateUserRequestDTO request,
+       CancellationToken cancellationToken
+    )
+    {
+        ApplicationUserMapping? userExisting = default;
+        bool isRollback = true;
 
-    //    try
-    //    {
-    //        if (!string.IsNullOrWhiteSpace(request.NewPassword))
-    //        {
-    //            var passwordValidation = PasswordValidator.ValidatePassword(request.NewPassword);
-    //            if (passwordValidation.Any())
-    //            {
-    //                return Result.Fail(passwordValidation);
-    //            }
-    //        }
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                var passwordValidation = PasswordValidation.Validate(request.NewPassword);
+                if (passwordValidation.Any())
+                {
+                    return Result.Fail(passwordValidation);
+                }
+            }
 
-    //        var userWithEmailExists = await _userRepository.GetUserByEmailAsync(
-    //            request.NewEmail,
-    //            cancellationToken
-    //        );
+            /*     var userWithEmailExists = await _userRepository.GetUserByEmailAsync(
+                    request.NewEmail,
+                    cancellationToken
+                );
 
-    //        if (userWithEmailExists is not null && userWithEmailExists.Id != userId)
-    //        {
-    //            return Result.Fail(UserErrorFactory.EmailAlreadyExists());
-    //        }
+                if (userWithEmailExists is not null && userWithEmailExists.KeycloakId != userId)
+                {
+                    return Result.Fail(UserErrorFactory.EmailAlreadyExists());
+                } */
 
-    //        userExisting = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
+            userExisting = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
 
-    //        if (userExisting == null)
-    //        {
-    //            return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
-    //        }
+            if (userExisting == null)
+            {
+                return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
+            }
 
-    //        var user = User.From(userExisting);
+            var user = User.From(
+                userExisting.Id,
+                userExisting.KeycloakId,
+                userExisting.UserName,
+                userExisting.Email,
+                userExisting.ProfileImagePath,
+                userExisting.Roles.ToHashSet()
+            );
 
-    //        if (user.IsFailure)
-    //        {
-    //            return Result.Fail(user.Errors);
-    //        }
+            if (user.IsFailure)
+            {
+                return Result.Fail(user.Errors);
+            }
 
-    //        var newImageBytes = Base64Helper.ConvertFromBase64String(request.NewProfileImage);
-    //        bool imagesAreDifferent = !newImageBytes.SequenceEqual(user.Value.ProfileImage);
+            var newImageBytes = Base64Helper.ConvertFromBase64String(request.NewProfileImage);
+            var currentImageBytes = await _imagesService.GetProfileImageBytesAsync(user.Value.ProfileImagePath.Value);
 
-    //        var imageUpdateResult = await TryUpdateProfileImageAsync(
-    //            user.Value,
-    //            request.NewProfileImage,
-    //            imagesAreDifferent
-    //        );
+            bool imagesAreDifferent = !newImageBytes.SequenceEqual(currentImageBytes);
 
-    //        if (imageUpdateResult.IsFailure)
-    //        {
-    //            return Result.Fail(imageUpdateResult.Errors);
-    //        }
+            var imageUpdateResult = await TryUpdateProfileImageAsync(
+                user.Value,
+                request.NewProfileImage,
+                imagesAreDifferent
+            );
 
-    //        var nameUpdated = user.Value.UpdateProfile(
-    //            newUsername: request.NewUserName,
-    //            newEmail: request.NewEmail
-    //        );
+            if (imageUpdateResult.IsFailure)
+            {
+                return Result.Fail(imageUpdateResult.Errors);
+            }
 
-    //        if (nameUpdated.IsFailure)
-    //        {
-    //            return Result.Fail(nameUpdated.Errors);
-    //        }
+            var nameUpdated = user.Value.UpdateProfile(
+                newUsername: request.NewUserName
+            );
 
-    //        await _keycloakService.UpdateUserAsync(user.Value, cancellationToken);
+            if (nameUpdated.IsFailure)
+            {
+                return Result.Fail(nameUpdated.Errors);
+            }
 
-    //        await _userRepository.UpdateApplicationUser(user.Value, cancellationToken);
+            await _keycloakService.UpdateUserAsync(user.Value, cancellationToken);
 
-    //        if (!string.IsNullOrWhiteSpace(request.NewPassword))
-    //        {
-    //            await _keycloakService.UpdateUserPasswordAsync(
-    //                user.Value.Id,
-    //                request.NewPassword,
-    //                cancellationToken
-    //            );
-    //        }
+            await _userRepository.UpdateApplicationUser(user.Value, cancellationToken);
 
-    //        _unitOfWork.Commit();
+            if (!string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                await _keycloakService.UpdateUserPasswordAsync(
+                    user.Value.KeycloakId,
+                    request.NewPassword,
+                    cancellationToken
+                );
+            }
 
-    //        isRollback = false;
+            _unitOfWork.Commit();
 
-    //        if (imagesAreDifferent && !string.IsNullOrWhiteSpace(userExisting.ProfileImagePath))
-    //        {
-    //            await _imagesService.DeleteProfileImageAsync(userExisting.ProfileImagePath);
-    //        }
+            isRollback = false;
 
-    //        var updatedUser = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
+            if (imagesAreDifferent && !string.IsNullOrWhiteSpace(userExisting.ProfileImagePath))
+            {
+                await _imagesService.DeleteProfileImageAsync(userExisting.ProfileImagePath);
+            }
 
-    //        if (updatedUser == null)
-    //        {
-    //            return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
-    //        }
+            var updatedUser = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
 
-    //        return updatedUser.ToResponseDTO();
-    //    }
-    //    catch (Exception)
-    //    {
-    //        if (userExisting is not null && isRollback)
-    //        {
-    //            await _accountServiceErrorHandler.HandleUnexpectedUpdateExceptionAsync(
-    //                userExisting
-    //            );
-    //        }
+            if (updatedUser == null)
+            {
+                return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
+            }
 
-    //        _unitOfWork.Rollback();
+            return updatedUser.ToResponseDTO();
+        }
+        catch (Exception)
+        {
+            if (userExisting is not null && isRollback)
+            {
+                await _accountServiceErrorHandler.HandleUnexpectedUpdateExceptionAsync(
+                    userExisting
+                );
+            }
 
-    //        throw;
-    //    }
-    //}
+            _unitOfWork.Rollback();
+
+            throw;
+        }
+    }
 
     public async Task<Result<bool>> UpdatePasswordAsync(
         UpdatePasswordRequestDTO request,

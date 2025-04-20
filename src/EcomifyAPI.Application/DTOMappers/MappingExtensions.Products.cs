@@ -43,14 +43,14 @@ public static class MappingExtensionsProducts
         return [.. productCategories.Select(productCategory => productCategory.ToDTO())];
     }
 
-    public static CategoryResponseDTO ToDTO(this CategoryMapping category)
+    public static CategoryResponseDTO ToResponseDTO(this CategoryMapping category)
     {
         return new CategoryResponseDTO(category.CategoryId, category.CategoryName, category.CategoryDescription);
     }
 
-    public static IReadOnlyList<CategoryResponseDTO> ToDTO(this IEnumerable<CategoryMapping> categories)
+    public static IReadOnlyList<CategoryResponseDTO> ToResponseDTO(this IEnumerable<CategoryMapping> categories)
     {
-        return [.. categories.Select(category => category.ToDTO())];
+        return [.. categories.Select(category => category.ToResponseDTO())];
     }
 
 

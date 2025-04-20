@@ -1,5 +1,4 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
-using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 
@@ -57,7 +56,7 @@ public class KeycloakService : IKeycloakService
         return users.ToReponseDTO();
     }
 
-    public async Task<Result<AuthResponseDTO>> RegisterUserAync(
+    public async Task<Result<AuthKeycloakResponseDTO>> RegisterUserAync(
         UserRegisterRequestDTO request,
         string profileImageUrl,
         CancellationToken cancellationToken
@@ -143,7 +142,7 @@ public class KeycloakService : IKeycloakService
 
             isRollback = false;
 
-            return new AuthResponseDTO(
+            return new AuthKeycloakResponseDTO(
                 newUser.Value.ToResponseDTO(),
                 userToken.Value.AccessToken,
                 userToken.Value.RefreshToken,
@@ -179,7 +178,7 @@ public class KeycloakService : IKeycloakService
         }
     }
 
-    public async Task<Result<AuthResponseDTO>> RegisterAdminAsync(
+    public async Task<Result<AuthKeycloakResponseDTO>> RegisterAdminAsync(
         UserRegisterRequestDTO request,
         string profileImageUrl,
         CancellationToken cancellationToken
@@ -265,7 +264,7 @@ public class KeycloakService : IKeycloakService
 
             isRollback = false;
 
-            return new AuthResponseDTO(
+            return new AuthKeycloakResponseDTO(
                 newUser.Value.ToResponseDTO(),
                 userToken.Value.AccessToken,
                 userToken.Value.RefreshToken,
@@ -302,7 +301,7 @@ public class KeycloakService : IKeycloakService
     }
 
 
-    public async Task<Result<AuthResponseDTO>> LoginUserAync(
+    public async Task<Result<AuthKeycloakResponseDTO>> LoginUserAync(
         UserLoginRequestDTO request,
         CancellationToken cancellationToken
     )
@@ -341,7 +340,7 @@ public class KeycloakService : IKeycloakService
                 return Result.Fail(user.Errors);
             }
 
-            return new AuthResponseDTO(
+            return new AuthKeycloakResponseDTO(
                 user.Value.ToResponseDTO(),
                 AccessToken: userToken.Value.AccessToken,
                 RefreshToken: userToken.Value.RefreshToken,
@@ -458,7 +457,7 @@ public class KeycloakService : IKeycloakService
         return users.First();
     }
 
-    public async Task<Result<UserMapping>> GetUserByEmailAsync(string email)
+    public async Task<Result<UserMapping>> GetUserByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         var apiUrl = $"{_endpointAdminBase}/users/?email={email}";
 
@@ -490,44 +489,6 @@ public class KeycloakService : IKeycloakService
         }
 
         return users.First();
-    }
-
-    public async Task<Result<UserInfoMapping>> GetUserInfoAsync(
-        string accessToken,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var apiUrl = $"{_endpointClientBase}/protocol/openid-connect/userinfo";
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            accessToken
-        );
-
-        var response = await _httpClient.GetAsync(apiUrl, cancellationToken);
-
-        if (!response.IsSuccessStatusCode && response.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            return Result.Fail(UserErrorFactory.InvalidOrExpiredToken("/userinfo"));
-        }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new BadRequestException(
-                $"Failed to retrieve user details: {response.StatusCode}, {error}"
-            );
-        }
-
-        var jsonResponse = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        var user = JsonConvert.DeserializeObject<UserInfoMapping>(jsonResponse);
-
-        ThrowHelper.ThrowIfNull(user);
-
-        return user;
     }
 
     private async Task<KeycloakToken> GetAdminTokenAsync()
@@ -602,6 +563,7 @@ public class KeycloakService : IKeycloakService
 
         return tokenResponse;
     }
+
     public async Task UpdateUserAsync(User user, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -612,14 +574,14 @@ public class KeycloakService : IKeycloakService
             tokenResponse.AccessToken
         );
 
-        var updateUserUrl = $"{_endpointAdminBase}/users/{user.Id}";
+        var updateUserUrl = $"{_endpointAdminBase}/users/{user.KeycloakId}";
 
         // warning: sending email, even if it is not actually being updated, to avoid deleting this field in keycloak
 
         var updatedUser = new
         {
             username = user.UserName,
-            email = user.Email,
+            email = user.Email.Value,
             attributes = new Dictionary<string, string>
             {
                 ["profileImagePath"] = user.ProfileImagePath.Value,
@@ -637,7 +599,7 @@ public class KeycloakService : IKeycloakService
         {
             var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
             throw new BadRequestException(
-                $"Failed to update user {user.Id}: {response.StatusCode}, {errorContent}"
+                $"Failed to update user {user.KeycloakId}: {response.StatusCode}, {errorContent}"
             );
         }
     }

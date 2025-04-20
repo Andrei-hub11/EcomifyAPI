@@ -29,6 +29,18 @@ public class OrderTests
     }
 
     [Fact]
+    public void Create_ShouldSucceed_WhenOrderStatusIsConfirmed()
+    {
+        // Act
+        var result = _builder.WithStatus(OrderStatusEnum.Confirmed).Build();
+
+        // Assert
+        result.IsFailure.ShouldBeFalse();
+        result.Value.ShouldNotBeNull();
+        result.Value.Status.ShouldBe(OrderStatusEnum.Confirmed);
+    }
+
+    [Fact]
     public void Create_ShouldFail_WhenIdIsEmpty()
     {
         // Act
@@ -70,11 +82,11 @@ public class OrderTests
     }
 
     [Fact]
-    public void ProcessPayment_ShouldThrow_WhenOrderIsNotInCreatedStatus()
+    public void ProcessPayment_ShouldThrow_WhenOrderIsConfirmed()
     {
         // Arrange
         var order = _builder
-            .WithStatus(OrderStatusEnum.Processing)
+            .WithStatus(OrderStatusEnum.Confirmed)
             .Build()
             .Value;
 
@@ -95,6 +107,195 @@ public class OrderTests
         // Assert
         order.OrderItems.Count.ShouldBe(1);
         order.TotalAmount.Amount.ShouldBe(100);
+    }
+
+    [Fact]
+    public void AddItem_ShouldSucceed_WhenOrderIsConfirmed()
+    {
+        // Arrange
+        var order = _builder
+            .WithStatus(OrderStatusEnum.Confirmed)
+            .Build()
+            .Value;
+        var product = CreateSampleProduct();
+
+        // Act
+        order!.AddItem(product, 1, new Money("USD", 100));
+
+        // Assert
+        order.OrderItems.Count.ShouldBe(1);
+        order.TotalAmount.Amount.ShouldBe(100);
+    }
+
+    [Fact]
+    public void AddItem_ShouldFail_WhenOrderIsProcessing()
+    {
+        // Arrange
+        var order = _builder
+            .WithStatus(OrderStatusEnum.Processing)
+            .Build()
+            .Value;
+        var product = CreateSampleProduct();
+
+        // Act & Assert
+        Should.Throw<InvalidOperationException>(() => order!.AddItem(product, 1, new Money("USD", 100)));
+    }
+
+    [Fact]
+    public void AddItem_ShouldUpdateExistingItem_WhenProductIdMatches()
+    {
+        // Arrange
+        var order = _builder.Build().Value;
+        var product = CreateSampleProduct();
+        order!.AddItem(product, 1, new Money("USD", 100));
+
+        // Act
+        order.AddItem(product, 2, new Money("USD", 100));
+
+        // Assert
+        order.OrderItems.Count.ShouldBe(1);
+        order.OrderItems[0].Quantity.ShouldBe(3);
+        order.TotalAmount.Amount.ShouldBe(300);
+    }
+
+    [Fact]
+    public void RemoveItem_ShouldSucceed_WhenOrderIsCreated()
+    {
+        // Arrange
+        var order = _builder.Build().Value;
+        var product = CreateSampleProduct();
+        order!.AddItem(product, 1, new Money("USD", 100));
+
+        // Act
+        order.RemoveItem(product.Id);
+
+        // Assert
+        order.OrderItems.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public void RemoveItem_ShouldSucceed_WhenOrderIsConfirmed()
+    {
+        // Arrange
+        var order = _builder
+            .WithStatus(OrderStatusEnum.Confirmed)
+            .Build()
+            .Value;
+        var product = CreateSampleProduct();
+        order!.AddItem(product, 1, new Money("USD", 100));
+
+        // Act
+        order.RemoveItem(product.Id);
+
+        // Assert
+        order.OrderItems.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public void RemoveItem_ShouldFail_WhenOrderIsProcessing()
+    {
+        // Arrange
+        var order = _builder
+            .WithStatus(OrderStatusEnum.Processing)
+            .Build()
+            .Value;
+        var product = CreateSampleProduct();
+
+        // Act & Assert
+        Should.Throw<InvalidOperationException>(() => order!.RemoveItem(product.Id));
+    }
+
+    [Fact]
+    public void ApplyDiscount_ShouldCorrectlyCalculateTotalWithDiscount()
+    {
+        // Arrange
+        var order = _builder.Build().Value;
+        var product = CreateSampleProduct();
+        order!.AddItem(product, 2, new Money("USD", 100));
+
+        // Act
+        order.ApplyDiscount(50);
+
+        // Assert
+        order.TotalAmount.Amount.ShouldBe(200);
+        order.DiscountAmount.ShouldBe(50);
+        order.TotalWithDiscount.Amount.ShouldBe(150);
+    }
+
+    [Fact]
+    public void ApplyDiscount_ShouldCapDiscountToTotalAmount_WhenDiscountIsGreaterThanTotal()
+    {
+        // Arrange
+        var order = _builder.Build().Value;
+        var product = CreateSampleProduct();
+        order!.AddItem(product, 1, new Money("USD", 100));
+
+        // Act
+        order.ApplyDiscount(150);
+
+        // Assert
+        order.TotalAmount.Amount.ShouldBe(100);
+        order.DiscountAmount.ShouldBe(100);
+        order.TotalWithDiscount.Amount.ShouldBe(0);
+    }
+
+    [Fact]
+    public void ApplyDiscount_ShouldThrow_WhenDiscountIsNegative()
+    {
+        // Arrange
+        var order = _builder.Build().Value;
+        var product = CreateSampleProduct();
+        order!.AddItem(product, 1, new Money("USD", 100));
+
+        // Act & Assert
+        Should.Throw<ArgumentException>(() => order.ApplyDiscount(-10));
+    }
+
+    [Fact]
+    public void TotalWithDiscount_ShouldBeUpdated_WhenAddingItems()
+    {
+        // Arrange
+        var order = _builder.Build().Value;
+        var product = CreateSampleProduct();
+        order!.AddItem(product, 1, new Money("USD", 100));
+        order.ApplyDiscount(20);
+
+        // Initial check
+        order.TotalAmount.Amount.ShouldBe(100);
+        order.TotalWithDiscount.Amount.ShouldBe(80);
+
+        // Act - add another item
+        order.AddItem(product, 1, new Money("USD", 100));
+
+        // Assert
+        order.TotalAmount.Amount.ShouldBe(200);
+        order.DiscountAmount.ShouldBe(20);
+        order.TotalWithDiscount.Amount.ShouldBe(180);
+    }
+
+    [Fact]
+    public void TotalWithDiscount_ShouldBeUpdated_WhenRemovingItems()
+    {
+        // Arrange
+        var order = _builder.Build().Value;
+        var product = CreateSampleProduct();
+        var product2 = CreateSampleProduct();
+
+        order!.AddItem(product, 1, new Money("USD", 100));
+        order.AddItem(product2, 1, new Money("USD", 50));
+        order.ApplyDiscount(30);
+
+        // Initial check
+        order.TotalAmount.Amount.ShouldBe(150);
+        order.TotalWithDiscount.Amount.ShouldBe(120);
+
+        // Act - remove an item
+        order.RemoveItem(product2.Id);
+
+        // Assert
+        order.TotalAmount.Amount.ShouldBe(100);
+        order.DiscountAmount.ShouldBe(30);
+        order.TotalWithDiscount.Amount.ShouldBe(70);
     }
 
     private static Product CreateSampleProduct()

@@ -95,9 +95,28 @@ public sealed class ProductService : IProductService
         {
             var categories = await _productRepository.GetCategoriesAsync(cancellationToken);
 
-            return Result.Ok(categories.ToDTO());
+            return Result.Ok(categories.ToResponseDTO());
         }
         catch
+        {
+            throw;
+        }
+    }
+
+    public async Task<Result<CategoryResponseDTO>> GetCategoryByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var category = await _productRepository.GetCategoryByIdAsync(id, cancellationToken);
+
+            if (category is null)
+            {
+                return Result.Fail(ProductErrorFactory.CategoryNotFoundById(id));
+            }
+
+            return category.ToResponseDTO();
+        }
+        catch (Exception)
         {
             throw;
         }

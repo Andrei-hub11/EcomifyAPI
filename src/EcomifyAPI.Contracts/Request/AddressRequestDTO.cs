@@ -1,6 +1,6 @@
-namespace EcomifyAPI.Contracts.Models;
+namespace EcomifyAPI.Contracts.Request;
 
-public sealed record AddressDTO(
+public sealed record AddressRequestDTO(
     string Street,
     int Number,
     string City,

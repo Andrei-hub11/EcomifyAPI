@@ -1,7 +1,6 @@
 ﻿using EcomifyAPI.Api.Extensions;
 using EcomifyAPI.Api.Middleware;
 using EcomifyAPI.Application.Contracts.Services;
-using EcomifyAPI.Contracts.Request;
 
 using Microsoft.AspNetCore.Mvc;
 
@@ -54,26 +53,6 @@ public class OrderController : ControllerBase
 
         return result.Match(
             onSuccess: (order) => Ok(order),
-            onFailure: (errors) => errors.ToProblemDetailsResult()
-        );
-    }
-
-    /// <summary>
-    /// Creates a new order.
-    /// </summary>
-    /// <param name="request"><see cref="CreateOrderRequestDTO"/> Order request</param>
-    /// <returns>
-    /// A boolean value indicating whether the order was created successfully.
-    /// </returns>
-    /// <response code="200">Returns true if the order was created successfully.</response>
-    /// <response code="400">Some invalid data was provided.</response>
-    [HttpPost]
-    public async Task<IActionResult> CreateOrder(CreateOrderRequestDTO request)
-    {
-        var result = await _orderService.CreateOrderAsync(request);
-
-        return result.Match(
-            onSuccess: (isCreated) => Ok(isCreated),
             onFailure: (errors) => errors.ToProblemDetailsResult()
         );
     }

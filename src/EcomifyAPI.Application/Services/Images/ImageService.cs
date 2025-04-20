@@ -18,6 +18,21 @@ public class ImageService : IImagesService
         API_ROOT_DIRECTORY = configuration.ApiRootDirectory;
     }
 
+    public async Task<byte[]> GetProfileImageBytesAsync(string profileImagePath)
+    {
+        if (string.IsNullOrWhiteSpace(profileImagePath))
+        {
+            return [];
+        }
+
+        if (!File.Exists(profileImagePath))
+        {
+            return [];
+        }
+
+        return await File.ReadAllBytesAsync(profileImagePath);
+    }
+
     public async Task<ProfileImage> GetProfileImageAsync(string profileImage)
     {
         var result = new ProfileImage();

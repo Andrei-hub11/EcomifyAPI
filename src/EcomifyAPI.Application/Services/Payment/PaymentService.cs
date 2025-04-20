@@ -8,8 +8,6 @@ using EcomifyAPI.Contracts.Enums;
 using EcomifyAPI.Contracts.Models;
 using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
-using EcomifyAPI.Domain.Entities;
-using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
 
 namespace EcomifyAPI.Application.Services.Payment;
@@ -18,14 +16,23 @@ public class PaymentService : IPaymentService
 {
     private readonly IPaymentMethodFactory _paymentMethodFactory;
     private readonly IOrderService _orderService;
+    private readonly ICartService _cartService;
+    private readonly IAccountService _accountService;
     private readonly IPaymentRepository _paymentRepository;
     private readonly IOrderRepository _orderRepository;
     private readonly IUnitOfWork _unitOfWork;
 
-    public PaymentService(IPaymentMethodFactory paymentMethodFactory, IOrderService orderService, IUnitOfWork unitOfWork)
+    public PaymentService(
+        IPaymentMethodFactory paymentMethodFactory,
+        IOrderService orderService,
+        ICartService cartService,
+        IAccountService accountService,
+        IUnitOfWork unitOfWork)
     {
         _paymentMethodFactory = paymentMethodFactory;
         _orderService = orderService;
+        _cartService = cartService;
+        _accountService = accountService;
         _unitOfWork = unitOfWork;
         _paymentRepository = _unitOfWork.GetRepository<IPaymentRepository>();
         _orderRepository = _unitOfWork.GetRepository<IOrderRepository>();
@@ -52,156 +59,135 @@ public class PaymentService : IPaymentService
 
     public async Task<Result<PaymentResponseDTO>> ProcessPaymentAsync(PaymentRequestDTO request, CancellationToken cancellationToken = default)
     {
-        var existingOrder = await _orderRepository.GetByIdAsync(request.OrderId, cancellationToken);
-
-        if (existingOrder is null)
+        try
         {
-            return Result.Fail(OrderErrorFactory.OrderNotFound(request.OrderId));
-        }
+            // Generate a temporary PaymentId that will be used for tracking
+            var tempPaymentId = Guid.NewGuid();
 
-        var order = Order.From(
-            existingOrder.Id,
-            existingOrder.UserId,
-            existingOrder.OrderDate,
-            existingOrder.Status.ToOrderStatusDomain(),
-            DateTime.UtcNow,
-            DateTime.UtcNow,
-            new Address(
-                existingOrder.ShippingStreet,
-                existingOrder.ShippingNumber,
-                existingOrder.ShippingCity,
-                existingOrder.ShippingState,
-                existingOrder.ShippingZipCode,
-                existingOrder.ShippingCountry,
-                existingOrder.ShippingComplement
-            ),
-            new Address(
-                existingOrder.BillingStreet,
-                existingOrder.BillingNumber,
-                existingOrder.BillingCity,
-                existingOrder.BillingState,
-                existingOrder.BillingZipCode,
-                existingOrder.BillingCountry,
-                existingOrder.BillingComplement
-            ),
-            [.. existingOrder.Items.Select(item => new OrderItem(
-                    item.ItemId,
-                    item.ProductId,
-                    item.Quantity,
-                    new Money(item.CurrencyCode, item.UnitPrice)))]
-        );
+            // Get cart for the user
+            var cart = await _cartService.GetCartAsync(request.UserId, cancellationToken);
 
-        if (order.IsFailure)
-        {
-            return Result.Fail(order.Errors);
-        }
+            if (cart.IsFailure)
+            {
+                return Result.Fail(cart.Errors);
+            }
 
-        if (order.Value.Status == OrderStatusEnum.Completed)
-        {
-            return Result.Fail(OrderErrorFactory.OrderAlreadyCompleted(request.OrderId));
-        }
+            if (cart.Value.Items.Count == 0)
+            {
+                return Result.Fail(OrderErrorFactory.CartEmpty());
+            }
 
-        order.Value.UpdateStatus(OrderStatusEnum.Processing);
+            decimal amount = cart.Value.TotalWithDiscount.Amount;
 
-        var isOrderUpdated = await _orderService.UpdateOrderAsync(
-            order.Value.Id,
-            order.Value.ToUpdateOrderRequestDTO(),
-            cancellationToken
-        );
+            // Simulate a delay in the payment process
+            await Task.Delay(16000, cancellationToken);
 
-        if (isOrderUpdated.IsFailure)
-        {
-            return Result.Fail(isOrderUpdated.Errors);
-        }
+            var paymentMethod = _paymentMethodFactory.GetPaymentMethod(GetPaymentMethod(request.PaymentMethod));
 
-        var paymentMethod = _paymentMethodFactory.GetPaymentMethod(GetPaymentMethod(request.PaymentMethod));
+            if (paymentMethod is null)
+            {
+                return Result.Fail(PaymentErrorFactory.InvalidPaymentMethod(request.PaymentMethod.ToString()));
+            }
 
-        if (paymentMethod is null)
-        {
-            return Result.Fail(PaymentErrorFactory.InvalidPaymentMethod(request.PaymentMethod.ToString()));
-        }
+            PaymentDetails paymentDetails = request.CreditCardDetails as PaymentDetails
+          ?? request.PayPalDetails as PaymentDetails
+          ?? throw new InvalidOperationException("Invalid payment method");
 
-        PaymentDetails paymentDetails = request.CreditCardDetails as PaymentDetails
-      ?? request.PayPalDetails as PaymentDetails
-      ?? throw new InvalidOperationException("Invalid payment method");
+            var paymentResult = await paymentMethod.ProcessPaymentAsync(paymentDetails, cancellationToken);
 
-        var paymentResult = await paymentMethod.ProcessPaymentAsync(paymentDetails, cancellationToken);
+            if (paymentResult.IsFailure)
+            {
+                return Result.Fail(PaymentErrorFactory.PaymentFailed());
+            }
 
-        if (paymentResult.IsFailure)
-        {
-            order.Value.UpdateStatus(OrderStatusEnum.Failed);
+            // Create order after payment is confirmed
+            var userInfo = await _accountService.GetByIdAsync(request.UserId, cancellationToken);
 
-            _ = await _orderService.UpdateOrderAsync(
-                order.Value.Id,
-                order.Value.ToUpdateOrderRequestDTO(),
-                    cancellationToken
+            if (userInfo.IsFailure)
+            {
+                return Result.Fail(userInfo.Errors);
+            }
+
+            // Use shipping and billing addresses from the request
+            // Create order
+            var createOrderRequest = new CreateOrderRequestDTO(
+                request.UserId,
+                request.ShippingAddress,
+                request.BillingAddress
+            );
+
+            var orderResult = await _orderService.CreateOrderAsync(createOrderRequest, cancellationToken);
+
+            if (orderResult.IsFailure)
+            {
+                return Result.Fail(orderResult.Errors);
+            }
+
+            // Get the new order ID
+            var order = await _orderRepository.GetLatestOrderByUserIdAsync(request.UserId, cancellationToken);
+
+            if (order is null)
+            {
+                return Result.Fail("Failed to retrieve the created order");
+            }
+
+            // Now create the payment record with the real order ID
+            Result<PaymentRecord> paymentRecord = default!;
+
+            if (request.PaymentMethod == PaymentMethodEnumDTO.CreditCard && request.CreditCardDetails is CreditCardDetailsDTO creditCardDetails)
+            {
+                paymentRecord = PaymentRecord.CreateCreditCardPayment(
+                    order.Id,
+                    new Money(request.Currency, amount),
+                    paymentResult.Value.TransactionId,
+                    creditCardDetails.CardNumber.Substring(creditCardDetails.CardNumber.Length - 4),
+                    GetCardBrand(creditCardDetails.CardNumber),
+                    paymentResult.Value.Reference
                 );
+            }
 
-            return Result.Fail(PaymentErrorFactory.PaymentFailed());
+            if (request.PaymentMethod == PaymentMethodEnumDTO.PayPal && request.PayPalDetails is PayPalDetailsDTO payPalDetails)
+            {
+                paymentRecord = PaymentRecord.CreatePayPalPayment(
+                    order.Id,
+                    new Money(request.Currency, amount),
+                    paymentResult.Value.TransactionId,
+                    payPalDetails.PayerEmail,
+                    payPalDetails.PayerId.ToString(),
+                    paymentResult.Value.Reference
+                );
+            }
+
+            if (paymentRecord.IsFailure)
+            {
+                return Result.Fail(paymentRecord.Errors);
+            }
+
+            paymentRecord.Value.MarkAsSucceeded(paymentResult.Value.Reference);
+
+            // Create payment record
+            await _paymentRepository.CreateAsync(paymentRecord.Value, cancellationToken);
+
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return Result.Ok(new PaymentResponseDTO(
+                paymentRecord.Value.TransactionId,
+                paymentRecord.Value.Amount.Amount,
+                paymentRecord.Value.PaymentMethod.ToDTO(),
+                paymentRecord.Value.ProcessedAt,
+                paymentRecord.Value.Status.ToDTO(),
+                paymentRecord.Value.GatewayResponse,
+                paymentRecord.Value.GetCreditCardDetails()?.LastFourDigits,
+                paymentRecord.Value.GetCreditCardDetails()?.CardBrand,
+                paymentRecord.Value.GetPayPalDetails()?.PayPalEmail.Value,
+                paymentRecord.Value.StatusHistory.Select(statusHistory => statusHistory.ToDTO()).ToList()
+            ));
         }
-
-        Result<PaymentRecord> paymentRecord = default!;
-
-        if (request.PaymentMethod == PaymentMethodEnumDTO.CreditCard && request.CreditCardDetails is CreditCardDetailsDTO creditCardDetails)
+        catch (Exception ex)
         {
-            paymentRecord = PaymentRecord.CreateCreditCardPayment(
-            request.OrderId,
-            new Money("BRL", request.Amount),
-            paymentResult.Value.TransactionId,
-            creditCardDetails.CardNumber.Substring(creditCardDetails.CardNumber.Length - 4),
-            paymentResult.Value.Reference,
-            GetCardBrand(creditCardDetails.CardNumber)
-            );
+            await _unitOfWork.RollbackAsync(cancellationToken);
+            return Result.Fail($"Payment processing failed: {ex.Message}");
         }
-
-        if (request.PaymentMethod == PaymentMethodEnumDTO.PayPal && request.PayPalDetails is PayPalDetailsDTO payPalDetails)
-        {
-            paymentRecord = PaymentRecord.CreatePayPalPayment(
-                request.OrderId,
-                new Money("BRL", request.Amount),
-                paymentResult.Value.TransactionId,
-                payPalDetails.PayerId.ToString(),
-                payPalDetails.PayerEmail,
-                paymentResult.Value.Reference
-            );
-        }
-
-        if (paymentRecord.IsFailure)
-        {
-            return Result.Fail(paymentRecord.Errors);
-        }
-
-        paymentRecord.Value.MarkAsSucceeded(paymentResult.Value.Reference);
-
-        await _paymentRepository.CreateAsync(paymentRecord.Value, cancellationToken);
-
-        order.Value.UpdateStatus(OrderStatusEnum.Confirmed);
-
-        var isOrderConfirmed = await _orderService.UpdateOrderAsync(
-            order.Value.Id,
-            order.Value.ToUpdateOrderRequestDTO(),
-            cancellationToken
-        );
-
-        if (isOrderConfirmed.IsFailure)
-        {
-            return Result.Fail(isOrderConfirmed.Errors);
-        }
-
-        await _unitOfWork.CommitAsync(cancellationToken);
-
-        return Result.Ok(new PaymentResponseDTO(
-            paymentRecord.Value.TransactionId,
-            paymentRecord.Value.Amount.Amount,
-            paymentRecord.Value.PaymentMethod.ToDTO(),
-            paymentRecord.Value.ProcessedAt,
-            paymentRecord.Value.Status.ToDTO(),
-            paymentRecord.Value.GatewayResponse,
-            paymentRecord.Value.GetCreditCardDetails()?.LastFourDigits,
-            paymentRecord.Value.GetCreditCardDetails()?.CardBrand,
-            paymentRecord.Value.GetPayPalDetails()?.PayPalEmail.Value,
-            paymentRecord.Value.StatusHistory.Select(statusHistory => statusHistory.ToDTO()).ToList()
-        ));
     }
 
     public Task<Result<bool>> RefundPaymentAsync(Guid id, CancellationToken cancellationToken = default)
@@ -213,7 +199,6 @@ public class PaymentService : IPaymentService
     {
         throw new NotImplementedException();
     }
-
 
     private string GetPaymentMethod(PaymentMethodEnumDTO paymentMethod)
     {

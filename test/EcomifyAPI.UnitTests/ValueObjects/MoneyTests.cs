@@ -1,6 +1,6 @@
 using EcomifyAPI.Common.Utils.ResultError;
 using EcomifyAPI.Domain.Exceptions;
-using EcomifyAPI.UnitTests.ValueObjects.Builders;
+using EcomifyAPI.UnitTests.Builders;
 
 using Shouldly;
 

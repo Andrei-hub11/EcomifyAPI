@@ -4,5 +4,5 @@ public sealed record OrderItemDTO(
     Guid ItemId,
     Guid ProductId,
     int Quantity,
-    CurrencyDTO UnitPrice
+    MoneyDTO UnitPrice
 );

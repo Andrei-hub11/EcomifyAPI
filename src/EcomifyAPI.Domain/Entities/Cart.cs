@@ -11,19 +11,23 @@ public sealed class Cart
     public Guid Id { get; private set; }
     public string UserId { get; private set; } = string.Empty;
     public Money TotalAmount => CalculateTotalAmount();
+    public Money TotalWithDiscount { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
     public IReadOnlyList<CartItem> Items => _items.AsReadOnly();
+    public IReadOnlyList<CartDiscount> Discounts => _discounts.AsReadOnly();
 
     private readonly List<CartItem> _items = [];
+    private readonly List<CartDiscount> _discounts = [];
 
-    private Cart(Guid id, string userId, DateTime createdAt, DateTime? updatedAt, List<CartItem> items)
+    private Cart(Guid id, string userId, DateTime createdAt, DateTime? updatedAt, List<CartItem> items, List<CartDiscount> discounts)
     {
         Id = id;
         UserId = userId;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
         _items = items;
+        _discounts = discounts;
     }
 
     public static Result<Cart> Create(string userId)
@@ -35,19 +39,33 @@ public sealed class Cart
             return Result.Fail(errors);
         }
 
-        return new Cart(Guid.NewGuid(), userId, DateTime.UtcNow, null, []);
+        return new Cart(
+            Guid.NewGuid(),
+            userId,
+            DateTime.UtcNow,
+            null,
+            [],
+            []
+        );
     }
 
-    public static Result<Cart> From(Guid id, string userId, DateTime createdAt, DateTime? updatedAt, List<CartItem> items)
+    public static Result<Cart> From(
+        Guid id,
+        string userId,
+        DateTime createdAt,
+        DateTime? updatedAt,
+        List<CartItem> items,
+        List<CartDiscount> discounts
+    )
     {
-        var errors = ValidateCart(userId, createdAt, updatedAt, items, id);
+        var errors = ValidateCart(userId, createdAt, updatedAt, items, discounts, id);
 
         if (errors.Count != 0)
         {
             return Result.Fail(errors);
         }
 
-        return new Cart(id, userId, createdAt, updatedAt, items);
+        return new Cart(id, userId, createdAt, updatedAt, items, discounts);
     }
 
     public static ReadOnlyCollection<ValidationError> ValidateCart(
@@ -55,6 +73,7 @@ public sealed class Cart
         DateTime? createdAt = null,
         DateTime? updatedAt = null,
         List<CartItem>? items = null,
+        List<CartDiscount>? discounts = null,
         Guid? id = null
     )
     {
@@ -80,6 +99,34 @@ public sealed class Cart
             errors.Add(Error.Validation("Updated at is required", "ERR_UPDATED_AT_REQUIRED", "updatedAt"));
         }
 
+        if (items is not null)
+        {
+            var duplicateItems = items
+                .GroupBy(i => i.ProductId)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            if (duplicateItems.Count != 0)
+            {
+                errors.Add(Error.Validation("Duplicate cart items are not allowed", "ERR_DUPLICATE_CART-I", "items"));
+            }
+        }
+
+        if (discounts is not null)
+        {
+            var duplicateDiscounts = discounts
+                .GroupBy(d => d.DiscountId)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            if (duplicateDiscounts.Count != 0)
+            {
+                errors.Add(Error.Validation("Duplicate discounts are not allowed", "ERR_DUPLICATE_DISC", "discounts"));
+            }
+        }
+
         return errors.AsReadOnly();
     }
 
@@ -91,6 +138,18 @@ public sealed class Cart
         }
 
         return new Money("BRL", _items.Sum(item => item.TotalPrice.Amount));
+    }
+
+    public void UpdateTotalWithDiscount(decimal discountAmount)
+    {
+        decimal finalAmount = TotalAmount.Amount - discountAmount;
+
+        if (finalAmount < 0)
+        {
+            finalAmount = 0;
+        }
+
+        TotalWithDiscount = new Money("BRL", finalAmount);
     }
 
     public void AddItem(Product product, int quantity, Money unitPrice)

@@ -28,7 +28,7 @@ public class AccountController : ControllerBase
     /// Retrieves the user profile.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token</param>
-    /// <returns>A <see cref="UserResponseDTO"/> containing the user profile.</returns>
+    /// <returns>A <see cref="AuthResponseDTO"/> containing the user profile.</returns>
     /// <response code="200">Returns the user profile when found successfully.</response>
     /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="422">Validation errors</response>
@@ -43,7 +43,7 @@ public class AccountController : ControllerBase
         var result = await _accountService.GetAsync(accessToken, cancellationToken);
 
         return result.Match(
-            onSuccess: (user) => Ok(user),
+            onSuccess: (authResponse) => Ok(authResponse),
             onFailure: (errors) => errors.ToProblemDetailsResult()
         );
     }
@@ -72,7 +72,7 @@ public class AccountController : ControllerBase
     /// </summary>
     /// <param name="request">The user registration request</param>
     /// <param name="cancellationToken">The cancellation token</param>
-    /// <returns>A <see cref="UserResponseDTO"/> containing the registered user.</returns>
+    /// <returns>A <see cref="AuthResponseDTO"/> containing the registered user.</returns>
     /// <response code="200">Returns the registered user when found successfully.</response>
     /// <response code="400">Some invalid data was provided.</response>
     /// <response code="409">Email already exists</response>
@@ -91,13 +91,23 @@ public class AccountController : ControllerBase
         );
     }
 
+    /// <summary>
+    /// Creates an admin user in the keycloak client. It is only available in the integration test environment.
+    /// </summary>
+    /// <param name="request">The user registration request</param>
+    /// <param name="cancellationToken">The cancellation token</param>
+    /// <returns>A <see cref="AuthResponseDTO"/> containing the registered user.</returns>
+    /// <response code="200">Returns the registered user when found successfully.</response>
+    /// <response code="404">Not found if the environment is not integration test.</response>
+    /// <response code="422">Validation errors</response>
+    [ApiExplorerSettings(IgnoreApi = true)]
     [HttpPost("test-utils/create-admin")]
     public async Task<IActionResult> CreateAdmin(
         [FromBody] UserRegisterRequestDTO request,
         CancellationToken cancellationToken
     )
     {
-        if (!_environment.IsDevelopment() && !_environment.IsEnvironment("Testing"))
+        if (!_environment.IsEnvironment("INTEGRATION_TEST"))
         {
             return NotFound();
         }
@@ -120,7 +130,7 @@ public class AccountController : ControllerBase
     /// <returns>A <see cref="AuthResponseDTO"/> containing the authenticated user.</returns>
     /// <response code="200">Returns the authenticated user when found successfully.</response>
     /// <response code="400">Some invalid data was provided.</response>
-    /// <response code="401">Unauthorized</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="422">Validation errors</response>
     [HttpPost("login")]
     public async Task<IActionResult> Login(
@@ -167,6 +177,7 @@ public class AccountController : ControllerBase
     /// <returns>A <see cref="UpdateAccessTokenResponseDTO"/> containing the refreshed access token.</returns>
     /// <response code="200">Returns the refreshed access token when found successfully.</response>
     /// <response code="400">Some invalid data was provided.</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="422">Validation errors</response>
     [Authorize]
     [HttpPost("token-renew")]
@@ -183,22 +194,6 @@ public class AccountController : ControllerBase
         );
     }
 
-    //[Authorize]
-    //[HttpPut("profile/{userId}")]
-    //public async Task<IActionResult> UpdateUserAsync(
-    //    [FromBody] UpdateUserRequestDTO request,
-    //    string userId,
-    //    CancellationToken cancellationToken
-    //)
-    //{
-    //    var result = await _accountService.UpdateUserAsync(userId, request, cancellationToken);
-
-    //    return result.Match(
-    //        onSuccess: (user) => Ok(user),
-    //        onFailure: (errors) => errors.ToProblemDetailsResult()
-    //    );
-    //}
-
     [HttpPost("logout")]
     public IActionResult Logout()
     {
@@ -206,6 +201,33 @@ public class AccountController : ControllerBase
         _cookieService.DeleteCookie("refresh_token");
 
         return Ok();
+    }
+
+    /// <summary>
+    /// Updates the user profile.
+    /// </summary>
+    /// <param name="request">The update user request</param>
+    /// <param name="userId">The user id</param>
+    /// <param name="cancellationToken">The cancellation token</param>
+    /// <returns>A <see cref="AuthResponseDTO"/> containing the updated user.</returns>
+    /// <response code="200">Returns the updated user when found successfully.</response>
+    /// <response code="400">Some invalid data was provided.</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
+    /// <response code="422">Validation errors</response>
+    [Authorize]
+    [HttpPut("profile/{userId}")]
+    public async Task<IActionResult> UpdateUserAsync(
+        [FromBody] UpdateUserRequestDTO request,
+        string userId,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await _accountService.UpdateAsync(userId, request, cancellationToken);
+
+        return result.Match(
+            onSuccess: (authResponse) => Ok(authResponse),
+            onFailure: (errors) => errors.ToProblemDetailsResult()
+        );
     }
 
     /// <summary>

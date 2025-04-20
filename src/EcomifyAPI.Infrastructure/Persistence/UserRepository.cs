@@ -5,6 +5,7 @@ using Dapper;
 using EcomifyAPI.Application.Contracts.Repositories;
 using EcomifyAPI.Contracts.DapperModels;
 using EcomifyAPI.Domain.Entities;
+using EcomifyAPI.Domain.ValueObjects;
 
 namespace EcomifyAPI.Infrastructure.Persistence;
 
@@ -82,16 +83,17 @@ public class UserRepository : IUserRepository
         u.keycloak_id AS KeycloakId,
         u.email AS Email,
         u.profile_picture_url AS ProfileImagePath,
-        ue.username AS UserName,
+        ua.value AS UserName,
         COALESCE(ARRAY_AGG(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL), '{}') AS Roles
     FROM users u
     JOIN user_entity ue ON u.keycloak_id = ue.id
+    LEFT JOIN user_attribute ua ON ue.id = ua.user_id AND ua.name = 'normalizedUserName'
     LEFT JOIN user_group_membership ugm ON ue.id = ugm.user_id
     LEFT JOIN keycloak_group g ON ugm.group_id = g.id
     LEFT JOIN group_role_mapping grm ON g.id = grm.group_id
     LEFT JOIN keycloak_role r ON grm.role_id = r.id
     WHERE u.keycloak_id = @Id
-    GROUP BY u.id, ue.id;";
+    GROUP BY u.id, ue.id, ua.value;";
 
         var result = await Connection.QueryAsync<ApplicationUserMapping>(
             new CommandDefinition(
@@ -116,16 +118,17 @@ public class UserRepository : IUserRepository
         u.keycloak_id AS KeycloakId,
         u.email AS Email,
         u.profile_picture_url AS ProfileImagePath,
-        ue.username AS UserName,
+        ua.value AS UserName,
         COALESCE(ARRAY_AGG(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL), '{}') AS Roles
     FROM users u
     JOIN user_entity ue ON u.keycloak_id = ue.id
+    LEFT JOIN user_attribute ua ON ue.id = ua.user_id AND ua.name = 'normalizedUserName'
     LEFT JOIN user_group_membership ugm ON ue.id = ugm.user_id
     LEFT JOIN keycloak_group g ON ugm.group_id = g.id
     LEFT JOIN group_role_mapping grm ON g.id = grm.group_id
     LEFT JOIN keycloak_role r ON grm.role_id = r.id
     WHERE u.email = @Email
-    GROUP BY u.id, ue.id;";
+    GROUP BY u.id, ue.id, ua.value;";
 
         var result = await Connection.QueryAsync<ApplicationUserMapping>(
             new CommandDefinition(
@@ -141,8 +144,6 @@ public class UserRepository : IUserRepository
 
     public async Task<IEnumerable<UserRoleMapping>> GetUserRolesAsync(string userId, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
         const string query = @"SELECT DISTINCT 
                     r.name AS role_name
                 FROM user_entity u
@@ -155,12 +156,45 @@ public class UserRepository : IUserRepository
                 AND r.name IN ('Admin', 'User', 'Monitor')";
 
         var result = await Connection.QueryAsync<UserRoleMapping>(
-            query,
-            new { Username = userId },
-            transaction: Transaction
+            new CommandDefinition(
+                query,
+                new { Username = userId },
+                cancellationToken: cancellationToken,
+                transaction: Transaction
+            )
         );
 
         return [.. result];
+    }
+
+    public async Task<UserAddressMapping?> GetUserAddressByFieldsAsync(string userId, string street, int number, string city,
+    string state, string zipCode, string country, string complement, CancellationToken cancellationToken)
+    {
+
+        const string query = @"SELECT * FROM user_addresses WHERE user_keycloak_id = @UserId 
+        AND street = @Street AND number = @Number AND city = @City AND state = @State AND zip_code = @ZipCode 
+        AND country = @Country AND complement = @Complement";
+
+        var result = await Connection.QueryAsync<UserAddressMapping>(
+            new CommandDefinition(
+                query,
+                new
+                {
+                    UserId = userId,
+                    Street = street,
+                    Number = number,
+                    City = city,
+                    State = state,
+                    ZipCode = zipCode,
+                    Country = country,
+                    Complement = complement
+                },
+                cancellationToken: cancellationToken,
+                transaction: Transaction
+            )
+        );
+
+        return result.FirstOrDefault();
     }
 
     /*     public async Task<IEnumerable<ApplicationUserMapping>> GetTestUsersAsync(
@@ -203,14 +237,12 @@ public class UserRepository : IUserRepository
             return userDictionary.Values;
         } */
 
-    public async Task<bool> CreateApplicationUser(User user, CancellationToken cancellationToken)
+    public async Task CreateApplicationUser(User user, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
         const string query =
-            @"INSERT INTO users (keycloak_id, email, profile_picture_url) VALUES (@KeycloakId, @Email, @ProfilePictureUrl)";
+            @"INSERT INTO users (keycloak_id, email, profile_picture_url) VALUES (@KeycloakId, @Email, @ProfilePictureUrl) RETURNING id";
 
-        int result = await Connection.ExecuteAsync(
+        await Connection.ExecuteAsync(new CommandDefinition(
             query,
             new
             {
@@ -218,53 +250,54 @@ public class UserRepository : IUserRepository
                 Email = user.Email.Value,
                 ProfilePictureUrl = user.ProfileImagePath.Value,
             },
+            cancellationToken: cancellationToken,
             transaction: Transaction
-        );
-
-        return result > 0;
+        ));
     }
 
-    public async Task AddRolesToUser(
-        string userId,
-        IReadOnlySet<string> roles,
-        CancellationToken cancellationToken
-    )
+    public async Task<Guid> CreateUserAddress(Address address, string userKeycloakId, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        const string query = @"INSERT INTO user_addresses (user_keycloak_id, street, number, city, state, 
+        zip_code, country, complement) VALUES (@UserKeycloakId, @Street, @Number, @City, 
+        @State, @ZipCode, @Country, @Complement) RETURNING id";
 
-        const string query =
-            @"INSERT INTO ApplicationUserRoles (UserId, Name) VALUES (@UserId, @Name)";
-
-        foreach (var item in roles)
-        {
-            await Connection.ExecuteAsync(
-                query,
-                new { UserId = userId, Name = item },
-                transaction: Transaction
-            );
-        }
-    }
-
-    public async Task<bool> UpdateApplicationUser(User user, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        const string query =
-            @"UPDATE users SET email = @Email,
-        profile_picture_url = @ProfileImagePath
-        WHERE keycloak_id = @KeycloakId";
-
-        int result = await Connection.ExecuteAsync(
+        var result = await Connection.ExecuteScalarAsync<Guid>(new CommandDefinition(
             query,
             new
             {
-                user.Email,
-                user.ProfileImagePath,
+                UserKeycloakId = userKeycloakId,
+                address.Street,
+                address.Number,
+                address.City,
+                address.State,
+                address.ZipCode,
+                address.Country,
+                address.Complement
             },
+            cancellationToken: cancellationToken,
             transaction: Transaction
-        );
+        ));
 
-        return result > 0;
+        return result;
+    }
+
+    public async Task UpdateApplicationUser(User user, CancellationToken cancellationToken)
+    {
+        const string query =
+            @"UPDATE users SET
+            profile_picture_url = @ProfileImagePath
+        WHERE keycloak_id = @KeycloakId";
+
+        await Connection.ExecuteAsync(new CommandDefinition(
+            query,
+            new
+            {
+                ProfileImagePath = user.ProfileImagePath.Value,
+                user.KeycloakId
+            },
+            cancellationToken: cancellationToken,
+            transaction: Transaction
+        ));
     }
 
     public async Task DeleteUserAsync(string userId, CancellationToken cancellationToken)

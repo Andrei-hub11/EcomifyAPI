@@ -1,4 +1,5 @@
 using EcomifyAPI.Application.Contracts.Data;
+using EcomifyAPI.Application.Contracts.Discounts;
 using EcomifyAPI.Application.Contracts.Logging;
 using EcomifyAPI.Application.Contracts.Repositories;
 using EcomifyAPI.Application.Contracts.Services;
@@ -7,6 +8,7 @@ using EcomifyAPI.Common.Utils.Errors;
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
+using EcomifyAPI.Domain.Common;
 using EcomifyAPI.Domain.Entities;
 using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
@@ -19,14 +21,27 @@ public sealed class OrderService : IOrderService
     private readonly IOrderRepository _orderRepository;
     private readonly IProductService _productService;
     private readonly IAccountService _accountService;
+    private readonly IDiscountService _discountService;
+    private readonly ICartService _cartService;
+    private readonly IDiscountServiceFactory _discountServiceFactory;
     private readonly ILoggerHelper<OrderService> _logger;
 
-    public OrderService(IUnitOfWork unitOfWork, IProductService productService, IAccountService accountService, ILoggerHelper<OrderService> logger)
+    public OrderService(
+        IUnitOfWork unitOfWork,
+        IProductService productService,
+        IAccountService accountService,
+        IDiscountService discountService,
+        ICartService cartService,
+        IDiscountServiceFactory discountServiceFactory,
+        ILoggerHelper<OrderService> logger)
     {
         _unitOfWork = unitOfWork;
         _orderRepository = unitOfWork.GetRepository<IOrderRepository>();
         _productService = productService;
         _accountService = accountService;
+        _discountService = discountService;
+        _cartService = cartService;
+        _discountServiceFactory = discountServiceFactory;
         _logger = logger;
     }
 
@@ -74,35 +89,46 @@ public sealed class OrderService : IOrderService
                 return Result.Fail(user.Errors);
             }
 
-            var order = Order.Create(
-            request.UserId,
-            DateTime.UtcNow,
-            request.Status.ToOrderStatusDomain(),
-            DateTime.UtcNow,
-            DateTime.UtcNow,
-            new Address(request.ShippingAddress.Street,
-            request.ShippingAddress.Number,
-            request.ShippingAddress.City,
-            request.ShippingAddress.State,
-            request.ShippingAddress.ZipCode,
-            request.ShippingAddress.Country,
-            request.ShippingAddress.Complement),
-            new Address(request.BillingAddress.Street,
-            request.BillingAddress.Number,
-            request.BillingAddress.City,
-            request.BillingAddress.State,
-            request.BillingAddress.ZipCode,
-            request.BillingAddress.Country,
-            request.BillingAddress.Complement)
-            );
+            var existingCart = await _cartService.GetCartAsync(request.UserId, cancellationToken);
 
+            if (existingCart.IsFailure)
+            {
+                return Result.Fail(existingCart.Errors);
+            }
+
+            var order = Order.Create(
+                request.UserId,
+                DateTime.UtcNow,
+                OrderStatusEnum.Confirmed,
+                DateTime.UtcNow,
+                DateTime.UtcNow,
+                new Address(request.ShippingAddress.Street,
+                    request.ShippingAddress.Number,
+                    request.ShippingAddress.City,
+                    request.ShippingAddress.State,
+                    request.ShippingAddress.ZipCode,
+                    request.ShippingAddress.Country,
+                    request.ShippingAddress.Complement),
+                new Address(request.BillingAddress.Street,
+                    request.BillingAddress.Number,
+                    request.BillingAddress.City,
+                    request.BillingAddress.State,
+                    request.BillingAddress.ZipCode,
+                    request.BillingAddress.Country,
+                    request.BillingAddress.Complement)
+            );
 
             if (order.IsFailure)
             {
                 return Result.Fail(order.Errors);
             }
 
-            foreach (var item in request.Items)
+            if (existingCart.Value.Items.Count == 0)
+            {
+                return Result.Fail(OrderErrorFactory.CartEmpty());
+            }
+
+            foreach (var item in existingCart.Value.Items)
             {
                 var productDTO = await _productService.GetByIdAsync(item.ProductId, cancellationToken);
 
@@ -128,6 +154,64 @@ public sealed class OrderService : IOrderService
 
             var currencyCode = order.Value.TotalAmount.Code;
 
+            var discountsToApply = await _discountService.GetDiscountToApply(request.UserId, cancellationToken);
+
+            if (discountsToApply.IsFailure)
+            {
+                return Result.Fail(discountsToApply.Errors);
+            }
+
+            var discountIds = discountsToApply.Value.Select(d => d.Id).ToList();
+
+            var discountHistories = new List<DiscountHistory>();
+
+            foreach (var discount in discountsToApply.Value)
+            {
+                // Calculate discount amount using the discount service factory
+                var strategy = _discountServiceFactory.GetDiscountService(discount.DiscountType);
+                var discountResult = await strategy.CalculateTotalDiscountAsync(
+                    order.Value.TotalAmount.Amount,
+                    [discount.Id],
+                    cancellationToken);
+
+                if (discountResult.IsFailure)
+                {
+                    return Result.Fail(discountResult.Errors);
+                }
+
+                var discountAmount = discountResult.Value;
+
+                if (discountAmount > 0)
+                {
+                    order.Value.ApplyDiscount(discountAmount);
+
+                    // Create discount history record
+                    var discountHistory = DiscountHistory.Create(
+                        order.Value.Id,
+                            request.UserId,
+                            discount.Id,
+                            (DiscountType)discount.DiscountType,
+                            discountAmount,
+                            discount.Percentage,
+                            discount.FixedAmount,
+                            discount.Code);
+
+                    if (discountHistory.IsFailure)
+                    {
+                        return Result.Fail(discountHistory.Errors);
+                    }
+
+                    discountHistories.Add(discountHistory.Value);
+
+                    _logger.LogInformation($"Applied discounts to order. Total discount amount: {discountAmount}");
+                }
+            }
+
+            foreach (var discountHistory in discountHistories)
+            {
+                await _discountService.CreateDiscountHistoryAsync(discountHistory, cancellationToken);
+            }
+
             var orderId = await _orderRepository.CreateAsync(order.Value, currencyCode, cancellationToken);
 
             foreach (var item in order.Value.OrderItems)
@@ -135,63 +219,10 @@ public sealed class OrderService : IOrderService
                 await _orderRepository.CreateOrderItemAsync(item, orderId, cancellationToken);
             }
 
-            await _unitOfWork.CommitAsync(cancellationToken);
+            await _accountService.GetOrCreateUserAddressAsync(request.UserId,
+                new CreateAddressRequestDTO(request.ShippingAddress), cancellationToken);
 
-            return true;
-        }
-        catch (Exception)
-        {
-            await _unitOfWork.RollbackAsync(cancellationToken);
-            throw;
-        }
-    }
-
-    public async Task<Result<bool>> UpdateOrderAsync(Guid orderId, UpdateOrderRequestDTO request, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var existingOrder = await _orderRepository.GetByIdAsync(orderId, cancellationToken);
-
-            if (existingOrder is null)
-            {
-                return Result.Fail(OrderErrorFactory.OrderNotFound(orderId));
-            }
-
-            var order = Order.From(
-                request.OrderId,
-                existingOrder.UserId,
-                existingOrder.OrderDate,
-                request.Status.ToOrderStatusDomain(),
-                existingOrder.CreatedAt,
-                existingOrder.CompletedAt,
-                new Address(
-                    request.ShippingAddress.Street,
-                    request.ShippingAddress.Number,
-                    request.ShippingAddress.City,
-                    request.ShippingAddress.State,
-                    request.ShippingAddress.ZipCode,
-                    request.ShippingAddress.Country,
-                    request.ShippingAddress.Complement),
-                new Address(
-                    request.BillingAddress.Street,
-                    request.BillingAddress.Number,
-                    request.BillingAddress.City,
-                    request.BillingAddress.State,
-                    request.BillingAddress.ZipCode,
-                    request.BillingAddress.Country,
-                    request.BillingAddress.Complement),
-                    [.. request.ItemsToUpdate.Select(item => new OrderItem(
-                    item.ItemId,
-                    item.ProductId,
-                    item.Quantity,
-                    new Money(item.UnitPrice.Code, item.UnitPrice.Amount)))]);
-
-            if (order.IsFailure)
-            {
-                return Result.Fail(order.Errors);
-            }
-
-            await _orderRepository.UpdateAsync(order.Value, cancellationToken);
+            await _cartService.ClearCartAsync(request.UserId, cancellationToken);
 
             await _unitOfWork.CommitAsync(cancellationToken);
 
@@ -204,7 +235,7 @@ public sealed class OrderService : IOrderService
         }
     }
 
-    public async Task<Result<bool>> CompleteOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<Result<bool>> UpdateStatusAsync(Guid orderId, OrderStatusEnum status, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -215,50 +246,11 @@ public sealed class OrderService : IOrderService
                 return Result.Fail(OrderErrorFactory.OrderNotFound(orderId));
             }
 
-            if (existingOrder.Status.ToOrderStatusDomain() == OrderStatusEnum.Completed)
-            {
-                return Result.Fail(OrderErrorFactory.OrderAlreadyCompleted(orderId));
-            }
+            var orderDomain = existingOrder.ToDomain();
 
-            var order = Order.From(
-                existingOrder.Id,
-                existingOrder.UserId,
-                existingOrder.OrderDate,
-                existingOrder.Status.ToOrderStatusDomain(),
-                existingOrder.CreatedAt,
-                DateTime.UtcNow,
-                new Address(
-                    existingOrder.ShippingAddress.ShippingStreet,
-                    existingOrder.ShippingAddress.ShippingNumber,
-                    existingOrder.ShippingAddress.ShippingCity,
-                    existingOrder.ShippingAddress.ShippingState,
-                    existingOrder.ShippingAddress.ShippingZipCode,
-                    existingOrder.ShippingAddress.ShippingCountry,
-                    existingOrder.ShippingAddress.ShippingComplement),
-                new Address(
-                    existingOrder.BillingAddress.BillingStreet,
-                    existingOrder.BillingAddress.BillingNumber,
-                    existingOrder.BillingAddress.BillingCity,
-                    existingOrder.BillingAddress.BillingState,
-                    existingOrder.BillingAddress.BillingZipCode,
-                    existingOrder.BillingAddress.BillingCountry,
-                    existingOrder.BillingAddress.BillingComplement),
-                existingOrder.Items.Select(item => new OrderItem(
-                    item.ItemId,
-                    item.ProductId,
-                    item.Quantity,
-                    new Money(item.CurrencyCode, item.UnitPrice)
-                )).ToList()
-            );
+            orderDomain.UpdateStatus(status);
 
-            if (order.IsFailure)
-            {
-                return Result.Fail(order.Errors);
-            }
-
-            order.Value.UpdateStatus(OrderStatusEnum.Completed);
-            await _orderRepository.UpdateAsync(order.Value, cancellationToken);
-
+            await _orderRepository.UpdateAsync(orderDomain, cancellationToken);
             await _unitOfWork.CommitAsync(cancellationToken);
 
             return true;

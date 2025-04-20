@@ -7,6 +7,8 @@ namespace EcomifyAPI.Application.Contracts.Repositories;
 public interface ICartRepository : IRepository
 {
     Task<CartMapping?> GetCartAsync(string userId, CancellationToken cancellationToken = default);
+    Task<List<DiscountCartMapping>> GetAutoApplicableDiscountsAsync(IEnumerable<Guid> productIds,
+    CancellationToken cancellationToken = default);
     Task<CartMapping> CreateCartAsync(Cart cart, CancellationToken cancellationToken = default);
     Task AddItemAsync(Guid cartId, CartItem item, CancellationToken cancellationToken = default);
     Task UpdateItemQuantityAsync(Guid cartId, Guid productId, CartItem item, CancellationToken cancellationToken = default);

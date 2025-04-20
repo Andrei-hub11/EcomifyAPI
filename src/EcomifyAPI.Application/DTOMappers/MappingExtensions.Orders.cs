@@ -3,8 +3,10 @@ using EcomifyAPI.Contracts.Enums;
 using EcomifyAPI.Contracts.Models;
 using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
+using EcomifyAPI.Domain.Common;
 using EcomifyAPI.Domain.Entities;
 using EcomifyAPI.Domain.Enums;
+using EcomifyAPI.Domain.Exceptions;
 using EcomifyAPI.Domain.ValueObjects;
 
 namespace EcomifyAPI.Application.DTOMappers;
@@ -43,9 +45,10 @@ public static class MappingExtensionsOrders
         };
     }
 
-    private static AddressDTO ToAddressDTO(this ShippingAddressMapping address)
+    private static AddressResponseDTO ToAddressDTO(this ShippingAddressMapping address)
     {
-        return new AddressDTO(
+        return new AddressResponseDTO(
+            null,
             address.ShippingStreet,
             address.ShippingNumber,
             address.ShippingCity,
@@ -55,9 +58,10 @@ public static class MappingExtensionsOrders
             address.ShippingComplement);
     }
 
-    private static AddressDTO ToAddressDTO(this BillingAddressMapping address)
+    private static AddressResponseDTO ToAddressDTO(this BillingAddressMapping address)
     {
-        return new AddressDTO(
+        return new AddressResponseDTO(
+            null,
             address.BillingStreet,
             address.BillingNumber,
             address.BillingCity,
@@ -67,16 +71,27 @@ public static class MappingExtensionsOrders
             address.BillingComplement);
     }
 
-    private static AddressDTO ToAddressDTO(this Address address)
+    private static AddressRequestDTO ToAddressRequestDTO(this Address address)
     {
-        return new AddressDTO(
+        return new AddressRequestDTO(
             address.Street,
             address.Number,
             address.City,
             address.State,
             address.ZipCode,
             address.Country,
-            address.Complement);
+            address.Complement
+            );
+    }
+
+    private static List<OrderItem> ToOrderItem(this List<OrderItemMapping> items)
+    {
+        return [.. items.Select(item =>
+        new OrderItem(
+            item.OrderId,
+            item.ProductId,
+            item.Quantity,
+            new Money(item.CurrencyCode, item.UnitPrice)))];
     }
 
     private static IReadOnlyList<OrderItemDTO> ToOrderItemDTO(this List<OrderItemMapping> items)
@@ -86,7 +101,47 @@ public static class MappingExtensionsOrders
             item.OrderId,
             item.ProductId,
             item.Quantity,
-            new CurrencyDTO(item.CurrencyCode, item.UnitPrice)))];
+            new MoneyDTO(item.CurrencyCode, item.UnitPrice)))];
+    }
+
+    public static DiscountHistoryDTO ToDTO(this DiscountHistory discountHistory)
+    {
+        return new DiscountHistoryDTO(
+            discountHistory.Id,
+            discountHistory.OrderId,
+            discountHistory.CustomerId,
+            discountHistory.DiscountId,
+            (DiscountTypeEnum)discountHistory.DiscountType,
+            discountHistory.DiscountAmount,
+            discountHistory.Percentage,
+            discountHistory.FixedAmount,
+            discountHistory.CouponCode,
+            discountHistory.AppliedAt);
+    }
+
+    public static IReadOnlyList<DiscountHistoryDTO> ToDTO(this IEnumerable<DiscountHistory> discountHistories)
+    {
+        return [.. discountHistories.Select(d => d.ToDTO())];
+    }
+
+    public static DiscountHistoryDTO ToDTO(this DiscountHistoryMapping mapping)
+    {
+        return new DiscountHistoryDTO(
+            mapping.Id,
+            mapping.OrderId,
+            mapping.CustomerId,
+            mapping.DiscountId,
+            (DiscountTypeEnum)mapping.DiscountType,
+            mapping.DiscountAmount,
+            mapping.Percentage,
+            mapping.FixedAmount,
+            mapping.CouponCode,
+            mapping.AppliedAt);
+    }
+
+    public static IReadOnlyList<DiscountHistoryDTO> ToDTO(this IEnumerable<DiscountHistoryMapping> mappings)
+    {
+        return [.. mappings.Select(m => m.ToDTO())];
     }
 
     public static UpdateOrderRequestDTO ToUpdateOrderRequestDTO(this Order order)
@@ -94,10 +149,10 @@ public static class MappingExtensionsOrders
         return new UpdateOrderRequestDTO(
             order.Id,
             order.Status.ToOrderStatusDTO(),
-            order.ShippingAddress.ToAddressDTO(),
-            order.BillingAddress.ToAddressDTO(),
+            order.ShippingAddress.ToAddressRequestDTO(),
+            order.BillingAddress.ToAddressRequestDTO(),
             [.. order.OrderItems.Select(item =>
-            new OrderItemDTO(item.Id, item.ProductId, item.Quantity, new CurrencyDTO(item.UnitPrice.Code, item.UnitPrice.Amount)))],
+            new OrderItemDTO(item.Id, item.ProductId, item.Quantity, new MoneyDTO(item.UnitPrice.Code, item.UnitPrice.Amount)))],
             []
         );
     }
@@ -110,6 +165,8 @@ public static class MappingExtensionsOrders
             order.OrderDate,
             order.Status,
             order.TotalAmount,
+            order.DiscountAmount,
+            order.TotalWithDiscount,
             order.CurrencyCode,
             order.ShippingAddress.ToAddressDTO(),
             order.BillingAddress.ToAddressDTO(),
@@ -120,5 +177,47 @@ public static class MappingExtensionsOrders
     public static IReadOnlyList<OrderResponseDTO> ToResponseDTO(this IEnumerable<OrderMapping> orders)
     {
         return [.. orders.Select(order => order.ToResponseDTO())];
+    }
+
+    public static Order ToDomain(this OrderMapping order)
+    {
+        var domain = Order.From(
+            order.Id,
+            order.UserId,
+            order.OrderDate,
+            order.Status.ToOrderStatusDomain(),
+            order.CreatedAt,
+            order.CompletedAt,
+            new Address(
+                order.ShippingAddress.ShippingStreet,
+                order.ShippingAddress.ShippingNumber,
+                order.ShippingAddress.ShippingCity,
+                order.ShippingAddress.ShippingState,
+                order.ShippingAddress.ShippingZipCode,
+                order.ShippingAddress.ShippingCountry,
+                order.ShippingAddress.ShippingComplement),
+            new Address(
+                order.BillingAddress.BillingStreet,
+                order.BillingAddress.BillingNumber,
+                order.BillingAddress.BillingCity,
+                order.BillingAddress.BillingState,
+                order.BillingAddress.BillingZipCode,
+                order.BillingAddress.BillingCountry,
+                order.BillingAddress.BillingComplement),
+            order.Items.ToOrderItem(),
+            order.DiscountAmount
+        );
+
+        if (domain.IsFailure)
+        {
+            throw new BadRequestException(string.Join(", ", domain.Errors));
+        }
+
+        return domain.Value;
+    }
+
+    public static IReadOnlyList<Order> ToDomain(this IEnumerable<OrderMapping> orders)
+    {
+        return [.. orders.Select(order => order.ToDomain())];
     }
 }

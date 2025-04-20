@@ -7,6 +7,7 @@ namespace EcomifyAPI.Domain.ValueObjects;
 
 public readonly record struct Address
 {
+    public Guid Id { get; init; }
     public string Street { get; init; } = string.Empty;
     public int Number { get; init; } = 0;
     public string City { get; init; } = string.Empty;
@@ -33,7 +34,35 @@ public readonly record struct Address
         Complement = complement;
     }
 
-    private static ReadOnlyCollection<ValidationError> ValidateAddress(string street, int number, string city, string state, string zipCode, string country, string complement)
+    public Address(Guid id, string street, int number, string city, string state, string zipCode, string country, string complement)
+    {
+        var errors = ValidateAddress(street, number, city, state, zipCode, country, complement, id);
+
+        if (errors.Count != 0)
+        {
+            throw new DomainException(errors);
+        }
+
+        Id = id;
+        Street = street;
+        Number = number;
+        City = city;
+        State = state;
+        ZipCode = zipCode;
+        Country = country;
+        Complement = complement;
+    }
+
+    private static ReadOnlyCollection<ValidationError> ValidateAddress(
+        string street,
+        int number,
+        string city,
+        string state,
+        string zipCode,
+        string country,
+        string complement,
+        Guid? id = null
+    )
     {
         var errors = new List<ValidationError>();
 

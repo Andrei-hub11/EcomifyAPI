@@ -6,8 +6,8 @@ namespace EcomifyAPI.Contracts.Request;
 public sealed record UpdateOrderRequestDTO(
     Guid OrderId,
     OrderStatusDTO Status,
-    AddressDTO ShippingAddress,
-    AddressDTO BillingAddress,
+    AddressRequestDTO ShippingAddress,
+    AddressRequestDTO BillingAddress,
     List<OrderItemDTO> ItemsToUpdate,
     List<Guid> ItemsToRemove
 );

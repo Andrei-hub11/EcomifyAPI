@@ -6,6 +6,6 @@ public sealed record CartItemResponseDTO(
     Guid Id,
     Guid ProductId,
     int Quantity,
-    CurrencyDTO UnitPrice,
-    CurrencyDTO TotalPrice
+    MoneyDTO UnitPrice,
+    MoneyDTO TotalPrice
 );

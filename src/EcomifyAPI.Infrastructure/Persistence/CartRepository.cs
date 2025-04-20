@@ -29,19 +29,23 @@ public class CartRepository : ICartRepository
     public async Task<CartMapping?> GetCartAsync(string userId, CancellationToken cancellationToken = default)
     {
         const string query = @"
-            SELECT c.id, c.user_keycloak_id AS userId, c.total_amount AS totalAmount, c.currency_code AS currencyCode, 
-                   c.created_at AS createdAt, ci.id AS itemId, ci.product_id AS productId, ci.quantity, ci.unit_price AS unitPrice, 
-                   ci.total_price AS itemTotalPrice, ci.currency_code AS itemCurrencyCode
-            FROM carts c
-            LEFT JOIN cart_items ci ON c.id = ci.cart_id
-            WHERE c.user_keycloak_id = @UserId;
-        ";
+        SELECT c.id, c.user_keycloak_id AS userId, c.total_amount AS totalAmount, c.currency_code AS currencyCode,
+               c.created_at AS createdAt, ci.id AS itemId, ci.product_id AS productId, ci.quantity, ci.unit_price AS unitPrice,
+               ci.total_price AS itemTotalPrice, ci.currency_code AS itemCurrencyCode,
+               d.id AS discountId, d.code AS couponCode, d.discount_type AS discountType, 
+               d.fixed_amount AS fixedAmount, d.percentage, d.valid_from AS validFrom, 
+               d.valid_to AS validTo, d.auto_apply AS autoApply
+        FROM carts c
+        LEFT JOIN cart_items ci ON c.id = ci.cart_id
+        LEFT JOIN applied_discounts ad ON c.id = ad.cart_id
+        LEFT JOIN discounts d ON ad.discount_id = d.id
+        WHERE c.user_keycloak_id = @UserId;
+    ";
 
         var cartDictionary = new Dictionary<Guid, CartMapping>();
-
-        await Connection.QueryAsync<CartMapping, CartItemMapping, CartMapping>(
+        await Connection.QueryAsync<CartMapping, CartItemMapping, DiscountCartMapping, CartMapping>(
             new CommandDefinition(query, new { UserId = userId }, cancellationToken: cancellationToken, transaction: Transaction),
-            (cart, item) =>
+            (cart, item, discount) =>
             {
                 if (!cartDictionary.TryGetValue(cart.Id, out var existingCart))
                 {
@@ -49,15 +53,46 @@ public class CartRepository : ICartRepository
                     cartDictionary[cart.Id] = existingCart;
                 }
 
-                if (item != null)
+                if (item != null && !existingCart.Items.Any(i => i.ItemId == item.ItemId))
                 {
                     existingCart.Items.Add(item);
                 }
 
+                if (discount != null && discount.Id != Guid.Empty && !existingCart.Discounts.Any(d => d.Id == discount.Id))
+                {
+                    existingCart.Discounts.Add(discount);
+                }
+
                 return existingCart;
-            }, splitOn: "itemId");
+            }, splitOn: "itemId,discountId");
 
         return cartDictionary.Values.FirstOrDefault();
+    }
+
+    public async Task<List<DiscountCartMapping>> GetAutoApplicableDiscountsAsync(
+    IEnumerable<Guid> productIds,
+    CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+        SELECT DISTINCT d.id, d.code AS couponCode, d.discount_type AS discountType, 
+                        d.fixed_amount AS fixedAmount, d.percentage, d.valid_from AS validFrom, 
+                        d.valid_to AS validTo, d.auto_apply AS autoApply
+        FROM discounts d
+        INNER JOIN discount_categories dc ON dc.discount_id = d.id
+        INNER JOIN product_categories pc ON pc.category_id = dc.category_id
+        WHERE pc.product_id = ANY(@ProductIds)
+          AND d.auto_apply = TRUE
+          AND d.is_active = TRUE
+          AND d.valid_from <= NOW()
+          AND d.valid_to >= NOW()
+    ";
+
+        var discounts = await Connection.QueryAsync<DiscountCartMapping>(
+            new CommandDefinition(query, new { ProductIds = productIds }, cancellationToken: cancellationToken,
+            transaction: Transaction)
+        );
+
+        return [.. discounts];
     }
 
     public async Task<CartMapping> CreateCartAsync(Cart cart, CancellationToken cancellationToken = default)

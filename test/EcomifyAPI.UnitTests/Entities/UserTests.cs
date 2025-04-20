@@ -53,6 +53,19 @@ public class UserTests
     }
 
     [Fact]
+    public void Create_ShouldFail_WhenUserNameIsTooShort()
+    {
+        // Act
+        var result = _builder
+            .WithUserName(new string('a', 2))
+            .Build();
+
+        // Assert
+        result.IsFailure.ShouldBeTrue();
+        result.Errors.ShouldContain(e => e.Code == "ERR_USERNAME_TOO_SHORT");
+    }
+
+    [Fact]
     public void Create_ShouldFail_WhenUserNameIsTooLong()
     {
         // Act
@@ -63,6 +76,23 @@ public class UserTests
         // Assert
         result.IsFailure.ShouldBeTrue();
         result.Errors.ShouldContain(e => e.Code == "ERR_USERNAME_TOO_LONG");
+    }
+
+    [Fact]
+    public void Create_ShouldFail_WhenUsernameHasSpaces()
+    {
+        // Arrange
+        var user = _builder.Build().Value;
+        var newUsername = "new username";
+
+        // Act
+        var result = _builder
+            .WithUserName(newUsername)
+            .Build();
+
+        // Assert
+        result.IsFailure.ShouldBeTrue();
+        result.Errors.ShouldContain(e => e.Code == "ERR_SPACES_IN_USERNAME");
     }
 
     [Fact]
@@ -92,5 +122,35 @@ public class UserTests
         // Assert
         result.IsFailure.ShouldBeTrue();
         result.Errors.ShouldContain(e => e.Code == "ERR_USERNAME_EMPTY");
+    }
+
+    [Fact]
+    public void UpdateProfile_ShouldFail_WhenUsernameIsTooShort()
+    {
+        // Arrange
+        var user = _builder.Build().Value;
+        var newUsername = "a";
+
+        // Act
+        var result = user!.UpdateProfile(newUsername: newUsername);
+
+        // Assert
+        result.IsFailure.ShouldBeTrue();
+        result.Errors.ShouldContain(e => e.Code == "ERR_USERNAME_TOO_SHORT");
+    }
+
+    [Fact]
+    public void UpdateProfile_ShouldFail_WhenUsernameContainsSpaces()
+    {
+        // Arrange
+        var user = _builder.Build().Value;
+        var newUsername = "new username";
+
+        // Act
+        var result = user!.UpdateProfile(newUsername: newUsername);
+
+        // Assert
+        result.IsFailure.ShouldBeTrue();
+        result.Errors.ShouldContain(e => e.Code == "ERR_SPACES_IN_USERNAME");
     }
 }

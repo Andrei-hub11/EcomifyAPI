@@ -1,4 +1,5 @@
 ﻿using EcomifyAPI.Api.Extensions;
+using EcomifyAPI.Api.Middleware;
 using EcomifyAPI.Application.Contracts.Services;
 using EcomifyAPI.Contracts.Request;
 
@@ -9,6 +10,7 @@ namespace EcomifyAPI.Api.Controllers;
 
 [Route("api/v1/carts")]
 [ApiController]
+[ServiceFilter(typeof(ResultFilter))]
 public class CartController : ControllerBase
 {
     private readonly ICartService _cartService;
@@ -24,6 +26,7 @@ public class CartController : ControllerBase
     /// <param name="userId">The user's id</param>
     /// <returns>A <see cref="CartResponseDTO"/> containing the cart of the user</returns>
     /// <response code="200">Returns the cart of the user. If the cart is empty, creates a new one.</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="404">The user was not found</response>
     /// <response code="422">Validation errors</response>
     [Authorize]
@@ -45,6 +48,7 @@ public class CartController : ControllerBase
     /// <param name="request">The request containing the product id and the quantity</param>
     /// <returns>A <see cref="CartResponseDTO"/> containing the updated cart</returns>
     /// <response code="200">Returns the updated cart</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="404">The product was not found</response>
     /// <response code="422">Validation errors</response>
     [Authorize]
@@ -60,11 +64,35 @@ public class CartController : ControllerBase
     }
 
     /// <summary>
+    /// Apply a coupon to the cart of a user
+    /// </summary>
+    /// <param name="userId">The user's id</param>
+    /// <param name="request">The request containing the coupon code</param>
+    /// <returns>A <see cref="CartResponseDTO"/> containing the updated cart</returns>
+    /// <response code="200">Returns the updated cart</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
+    /// <response code="404">The product was not found</response>
+    [Authorize]
+    [HttpPost("{userId}/coupons")]
+    public async Task<IActionResult> ApplyCoupon(string userId, [FromBody] ApplyDiscountRequestDTO request)
+    {
+        var result = await _cartService.ApplyDiscountAsync(userId, request);
+
+        return result.Match(
+            onSuccess: (cart) => Ok(cart),
+            onFailure: (errors) => errors.ToProblemDetailsResult()
+        );
+    }
+
+    /// <summary>
     /// Update the quantity of an item in the cart of a user
     /// </summary>
     /// <param name="userId">The user's id</param>
     /// <param name="request">The request containing the product id and the quantity</param>
     /// <returns>A <see cref="CartResponseDTO"/> containing the updated cart</returns>
+    /// <response code="200">Returns the updated cart</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
+    /// <response code="404">The product was not found</response>
     [Authorize]
     [HttpPut("{userId}/items")]
     public async Task<IActionResult> UpdateItemQuantity(string userId, [FromBody] UpdateItemQuantityRequestDTO request)
@@ -84,6 +112,7 @@ public class CartController : ControllerBase
     /// <param name="productId">The product's id</param>
     /// <returns>A <see cref="CartResponseDTO"/> containing the updated cart</returns>
     /// <response code="200">Returns the updated cart</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="404">The product was not found</response>
     [Authorize]
     [HttpDelete("{userId}/{productId}")]
@@ -103,6 +132,7 @@ public class CartController : ControllerBase
     /// <param name="userId">The user's id</param>
     /// <returns>A <see cref="CartResponseDTO"/> containing the updated cart</returns>
     /// <response code="200">Returns the updated cart</response>
+    /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="404">The user was not found</response>
     [Authorize]
     [HttpDelete("{userId}")]

@@ -9,8 +9,10 @@ public sealed record OrderResponseDTO(
     DateTime OrderDate,
     OrderStatusDTO Status,
     decimal TotalAmount,
+    decimal DiscountAmount,
+    decimal TotalWithDiscount,
     string CurrencyCode,
-    AddressDTO ShippingAddress,
-    AddressDTO BillingAddress,
+    AddressResponseDTO ShippingAddress,
+    AddressResponseDTO BillingAddress,
     IReadOnlyList<OrderItemDTO> Items
     );

@@ -1,6 +1,6 @@
 using EcomifyAPI.Domain.ValueObjects;
 
-namespace EcomifyAPI.UnitTests.ValueObjects.Builders;
+namespace EcomifyAPI.UnitTests.Builders;
 
 public class MoneyBuilder
 {

@@ -20,12 +20,35 @@ public class AccountTests : IAsyncLifetime
     private readonly AppHostFixture _fixture;
     private readonly string _baseUrl = "https://localhost:7037/api/v1";
     private readonly ITestOutputHelper _output;
+    private string _userId = string.Empty;
+    private string _email = string.Empty;
 
     public AccountTests(AppHostFixture fixture, ITestOutputHelper output)
     {
         _fixture = fixture;
         _output = output;
         _client = fixture.CreateClient();
+    }
+
+    private async Task AuthenticateUser()
+    {
+        var uniqueId = Guid.NewGuid().ToString();
+        var registerRequest = new RegisterRequestBuilder()
+            .WithUserName($"tokentest-{uniqueId}")
+            .WithEmail($"token-{uniqueId}@test.com")
+            .WithPassword("Token123!@#")
+            .Build();
+
+        var response = await _client.PostAsJsonAsync($"{_baseUrl}/account/register", registerRequest);
+        var result = await response.Content.ReadFromJsonAsync<AuthResponseDTO>(
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters = { new JsonStringSetConverter() },
+            });
+
+        _userId = result!.User.Id;
+        _email = result.User.Email;
     }
 
     [Fact]
@@ -40,20 +63,26 @@ public class AccountTests : IAsyncLifetime
             .WithPassword("Profile123!@#")
             .Build();
 
-        var registerResponse = await _client.PostAsJsonAsync(
+        await _client.PostAsJsonAsync(
             $"{_baseUrl}/account/register",
             registerRequest
         );
 
         // Act
         var response = await _client.GetAsync($"{_baseUrl}/account/profile");
-        var result = await response.Content.ReadFromJsonAsync<UserResponseDTO>();
+        var result = await response.Content.ReadFromJsonAsync<AuthResponseDTO>(
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters = { new JsonStringSetConverter(), new JsonReadOnlyListConverter<string>() },
+            }
+        );
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         result.ShouldNotBeNull();
-        result!.UserName.ShouldBe(registerRequest.UserName);
-        result.Email.ShouldBe(registerRequest.Email);
+        result!.User.UserName.ShouldBe(registerRequest.UserName);
+        result.User.Email.ShouldBe(registerRequest.Email);
     }
 
     [Fact]
@@ -96,8 +125,6 @@ public class AccountTests : IAsyncLifetime
         result!.User.ShouldNotBeNull();
         result.User.Email.ShouldBe(request.Email);
         result.User.UserName.ShouldBe(request.UserName);
-        result.AccessToken.ShouldNotBeNullOrEmpty();
-        result.RefreshToken.ShouldNotBeNullOrEmpty();
         result.Roles.ShouldNotBeEmpty();
     }
 
@@ -201,8 +228,6 @@ public class AccountTests : IAsyncLifetime
         result.ShouldNotBeNull();
         result!.User.ShouldNotBeNull();
         result.User.Email.ShouldBe(loginRequest.Email);
-        result.AccessToken.ShouldNotBeNullOrEmpty();
-        result.RefreshToken.ShouldNotBeNullOrEmpty();
         result.Roles.ShouldNotBeEmpty();
     }
 
@@ -242,6 +267,51 @@ public class AccountTests : IAsyncLifetime
 
         // Act
         var response = await _client.PostAsJsonAsync($"{_baseUrl}/account/login", loginRequest);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task UpdateProfile_WithValidData_ShouldReturnSuccess()
+    {
+        await AuthenticateUser();
+
+        var updateRequest = new UpdateUserRequestBuilder()
+            .WithUserName("updatedName")
+            .Build();
+
+        // Act
+        var response = await _client.PutAsJsonAsync(
+            $"{_baseUrl}/account/profile/{_userId}",
+            updateRequest
+        );
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<AuthResponseDTO>(
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters = { new JsonStringSetConverter(), new JsonReadOnlyListConverter<string>() },
+            }
+        );
+        result.ShouldNotBeNull();
+        result.User.UserName.ShouldBe("updatedName");
+    }
+
+    [Fact]
+    public async Task UpdateProfile_WithoutAuth_ShouldReturnUnauthorized()
+    {
+        // Arrange
+        _fixture.ClearCookies();
+
+        var updateRequest = new UpdateUserRequestBuilder()
+            .WithUserName("updatedName")
+            .Build();
+
+        // Act
+        var response = await _client.PutAsJsonAsync($"{_baseUrl}/account/profile/{Guid.NewGuid()}", updateRequest);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);

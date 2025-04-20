@@ -74,6 +74,15 @@ public sealed class UserErrorFactory
     }
 
     /// <summary>
+    /// Creates a conflict error for an existing address with the provided fields.
+    /// </summary>
+    /// <returns>An <see cref="Error"/> instance representing a conflict error.</returns>
+    public static Error AddressAlreadyExists()
+    {
+        return Error.Conflict("An address with the provided fields is already registered.", "ERR_DUPLICATE_ADDRESS");
+    }
+
+    /// <summary>
     /// Creates an unauthorized error indicating that the user needs to authenticate to access a specified resource.
     /// </summary>
     /// <param name="resourceName">The name or description of the resource the user attempted to access.</param>

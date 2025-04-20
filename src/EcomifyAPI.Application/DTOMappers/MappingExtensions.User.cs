@@ -7,6 +7,14 @@ namespace EcomifyAPI.Application.DTOMappers;
 
 public static class MappingExtensionsUser
 {
+    public static AuthResponseDTO ToResponseDTO(this AuthKeycloakResponseDTO authKeycloakResponseDTO)
+    {
+        return new AuthResponseDTO(
+            authKeycloakResponseDTO.User,
+            authKeycloakResponseDTO.Roles
+        );
+    }
+
     public static UserResponseDTO ToResponseDTO(this UserMapping user)
     {
         return new UserResponseDTO(user.Id, user.UserName, user.Email, user.ProfileImagePath);
@@ -22,9 +30,17 @@ public static class MappingExtensionsUser
         return new UserResponseDTO(user.Id, user.UserName, user.Email, user.ProfileImagePath);
     }
 
-    public static UserResponseDTO ToResponseDTO(this ApplicationUserMapping user)
+    private static UserResponseDTO ToDTO(this ApplicationUserMapping user)
     {
         return new UserResponseDTO(user.KeycloakId, user.UserName, user.Email, user.ProfileImagePath);
+    }
+
+    public static AuthResponseDTO ToResponseDTO(this ApplicationUserMapping user)
+    {
+        return new AuthResponseDTO(
+            user.ToDTO(),
+            user.Roles.ToHashSet()
+        );
     }
 
     public static IReadOnlyList<UserResponseDTO> ToReponseDTO(this IEnumerable<UserMapping> users)

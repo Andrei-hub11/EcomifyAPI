@@ -3,10 +3,11 @@ using EcomifyAPI.Contracts.Enums;
 namespace EcomifyAPI.Contracts.Request;
 
 public sealed record PaymentRequestDTO(
-    Guid OrderId,
-    decimal Amount,
+    string UserId,
     string Currency,
     PaymentMethodEnumDTO PaymentMethod,
     CreditCardDetailsDTO? CreditCardDetails,
-    PayPalDetailsDTO? PayPalDetails
+    PayPalDetailsDTO? PayPalDetails,
+    AddressRequestDTO ShippingAddress,
+    AddressRequestDTO BillingAddress
 );

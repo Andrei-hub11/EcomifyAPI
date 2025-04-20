@@ -1,4 +1,6 @@
-﻿using DotNet.Testcontainers.Builders;
+﻿using System.Net;
+
+using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Networks;
 
 using EcomifyAPI.IntegrationTests.config;
@@ -202,7 +204,7 @@ public class AppHostFixture : IAsyncLifetime
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseContentRoot(GetProjectPath());
-            builder.UseEnvironment("Testing");
+            builder.UseEnvironment("INTEGRATION_TEST");
             builder.ConfigureAppConfiguration(
                 (context, config) =>
                 {
@@ -257,6 +259,7 @@ public class AppHostFixture : IAsyncLifetime
 
     public HttpClient CreateClient() => _client;
 
+    public CookieContainer GetCookies() => _testHandler.GetCookies();
     public void ClearCookies() => _testHandler.ClearCookies();
 
     public void ClearAccessToken(Uri baseAddress) => _testHandler.RemoveAccessToken(baseAddress);
