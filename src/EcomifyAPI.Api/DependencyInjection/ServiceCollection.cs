@@ -1,5 +1,9 @@
-﻿using EcomifyAPI.Api.DependencyInjection;
+﻿using System.Threading.RateLimiting;
+
+using EcomifyAPI.Api.DependencyInjection;
 using EcomifyAPI.Api.Middleware;
+
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 
 namespace EcomifyAPI.Api.DependencyInjection;
 
@@ -19,7 +23,8 @@ public static class ServiceCollection
 
         services.AddProblemDetails();
         services.AddExceptionHandler<ExceptionHandler>();
-        services.AddSignalR();
+
+        services.AddFixedWindowRateLimiting();
 
         return services;
     }
@@ -40,6 +45,52 @@ public static class ServiceCollection
                               .WithMethods("GET", "POST", "PUT", "DELETE")
                               .AllowAnyHeader()
                               .AllowCredentials());
+        });
+
+        return services;
+    }
+
+    public static IServiceCollection AddFixedWindowRateLimiting(this IServiceCollection services)
+    {
+        services.AddRateLimiter(options =>
+        {
+            /* options.AddPolicy("FixedWindow",
+            httpContext => RateLimitPartition.GetFixedWindowLimiter(
+                httpContext.Connection.RemoteIpAddress?.ToString() ?? "Default",
+                factory: partition => new FixedWindowRateLimiterOptions
+                {
+                    Window = TimeSpan.FromSeconds(10),
+                    PermitLimit = 5,
+                    QueueLimit = 2,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                })); */
+
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+       httpContext => RateLimitPartition.GetFixedWindowLimiter(
+           httpContext.Connection.RemoteIpAddress?.ToString() ?? "Default",
+           factory: partition => new FixedWindowRateLimiterOptions
+           {
+               Window = TimeSpan.FromSeconds(10),
+               PermitLimit = 5,
+               QueueLimit = 2,
+               QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+           }));
+
+            options.OnRejected = async (context, token) =>
+            {
+                var factory = context.HttpContext.RequestServices.GetRequiredService<ProblemDetailsFactory>();
+
+                var problemDetails = factory.CreateProblemDetails(
+                    context.HttpContext,
+                    statusCode: StatusCodes.Status429TooManyRequests,
+                    title: "Too many requests",
+                    detail: "You have made too many requests. Please try again later.",
+                    type: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429"
+                    );
+
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: token);
+            };
         });
 
         return services;
