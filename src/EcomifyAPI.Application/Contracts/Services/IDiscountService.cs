@@ -14,4 +14,5 @@ public interface IDiscountService
     Task<Result<DiscountResponseDTO>> CreateAsync(CreateDiscountRequestDTO request, CancellationToken cancellationToken = default);
     Task<Result<bool>> CreateDiscountHistoryAsync(DiscountHistory discountHistory, CancellationToken cancellationToken = default);
     Task<Result<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Result<bool>> ClearAppliedDiscountsAsync(Guid cartId, CancellationToken cancellationToken = default);
 }

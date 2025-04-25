@@ -31,7 +31,7 @@ internal class EmailSender : IEmailSender
     {
         var model = new PasswordResetEmail(resetLink, tokenValidity);
 
-        string templatePath = Path.Combine(_srcDirectory, "VideoChatApp.Infrastructure", "Email", "Templates", "PasswordReset.cshtml");
+        string templatePath = Path.Combine(_srcDirectory, "EcomifyAPI.Infrastructure", "Email", "Templates", "PasswordReset.cshtml");
 
         if (!File.Exists(templatePath))
         {
@@ -41,6 +41,55 @@ internal class EmailSender : IEmailSender
         await _fluentEmail
             .To(toAddress)
             .Subject("Password Reset")
+            .UsingTemplateFromFile(templatePath, model)
+            .SendAsync();
+    }
+
+    public async Task SendPaymentCancellationEmail(string toAddress, OrderDetails orderDetails)
+    {
+        var model = new PaymentCancellationEmail(
+            orderDetails.OrderId.ToString(),
+            orderDetails.TotalAmount,
+            orderDetails.Amount.Code,
+            orderDetails.CustomerName,
+            "Payment cancelled by user request"
+        );
+
+        string templatePath = Path.Combine(_srcDirectory, "EcomifyAPI.Infrastructure", "Email", "Templates", "PaymentCancellation.cshtml");
+
+        if (!File.Exists(templatePath))
+        {
+            throw new FileNotFoundException($"Template file not found at: {templatePath}");
+        }
+
+        await _fluentEmail
+            .To(toAddress)
+            .Subject("Order Cancellation Confirmation")
+            .UsingTemplateFromFile(templatePath, model)
+            .SendAsync();
+    }
+
+    public async Task SendPaymentRefundEmail(string toAddress, OrderDetails orderDetails)
+    {
+        var model = new PaymentRefundEmail(
+            orderDetails.OrderId.ToString(),
+            orderDetails.TotalAmount,
+            orderDetails.Amount.Code,
+            orderDetails.CustomerName,
+            "Payment refunded by administrator",
+            DateTime.UtcNow.AddDays(5) // Estimated refund date (5 business days from now)
+        );
+
+        string templatePath = Path.Combine(_srcDirectory, "EcomifyAPI.Infrastructure", "Email", "Templates", "PaymentRefund.cshtml");
+
+        if (!File.Exists(templatePath))
+        {
+            throw new FileNotFoundException($"Template file not found at: {templatePath}");
+        }
+
+        await _fluentEmail
+            .To(toAddress)
+            .Subject("Payment Refund Confirmation")
             .UsingTemplateFromFile(templatePath, model)
             .SendAsync();
     }

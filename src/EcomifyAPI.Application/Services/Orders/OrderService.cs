@@ -6,6 +6,8 @@ using EcomifyAPI.Application.Contracts.Services;
 using EcomifyAPI.Application.DTOMappers;
 using EcomifyAPI.Common.Utils.Errors;
 using EcomifyAPI.Common.Utils.Result;
+using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Contracts.Enums;
 using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
 using EcomifyAPI.Domain.Common;
@@ -78,8 +80,10 @@ public sealed class OrderService : IOrderService
         }
     }
 
-    public async Task<Result<bool>> CreateOrderAsync(CreateOrderRequestDTO request, CancellationToken cancellationToken = default)
+    public async Task<Result<OrderResponseDTO>> CreateOrderAsync(CreateOrderRequestDTO request, CancellationToken cancellationToken = default)
     {
+        var originalProductState = new Dictionary<Guid, Product>();
+
         try
         {
             var user = await _accountService.GetByIdAsync(request.UserId, cancellationToken);
@@ -99,7 +103,6 @@ public sealed class OrderService : IOrderService
             var order = Order.Create(
                 request.UserId,
                 DateTime.UtcNow,
-                OrderStatusEnum.Confirmed,
                 DateTime.UtcNow,
                 DateTime.UtcNow,
                 new Address(request.ShippingAddress.Street,
@@ -134,6 +137,7 @@ public sealed class OrderService : IOrderService
 
                 if (productDTO.IsFailure)
                 {
+                    await RestoreProductState(originalProductState, cancellationToken);
                     return Result.Fail(productDTO.Errors);
                 }
 
@@ -141,23 +145,47 @@ public sealed class OrderService : IOrderService
 
                 if (product.Stock < item.Quantity)
                 {
-                    return Result.Fail($"Insufficient stock for product with id = '{item.ProductId}'");
+                    await RestoreProductState(originalProductState, cancellationToken);
+                    return Result.Fail(ProductErrorFactory.ProductOutOfStock(item.ProductId));
                 }
+
+                originalProductState.Add(product.Id, product);
 
                 order.Value.AddItem(product, item.Quantity, new Money(item.UnitPrice.Code, item.UnitPrice.Amount));
 
                 if (!product.DecrementStock(item.Quantity))
                 {
+                    await RestoreProductState(originalProductState, cancellationToken);
                     return Result.Fail(ProductErrorFactory.ProductOutOfStock(item.ProductId));
                 }
+
+                var categoryIds = product.ProductCategories.Select(c => c.CategoryId).ToList();
+
+                var updateProductCategoryRequestDTO = new UpdateProductCategoryRequestDTO(categoryIds);
+
+                await _productService.UpdateAsync(
+                product.Id,
+                new UpdateProductRequestDTO(
+                    product.Name,
+                    product.Description,
+                    product.Price.Amount,
+                    product.Price.Code,
+                    product.Stock,
+                    product.ImageUrl,
+                    (ProductStatusDTO)product.Status,
+                    updateProductCategoryRequestDTO),
+                cancellationToken);
             }
 
             var currencyCode = order.Value.TotalAmount.Code;
+
+            var orderId = await _orderRepository.CreateAsync(order.Value, currencyCode, cancellationToken);
 
             var discountsToApply = await _discountService.GetDiscountToApply(request.UserId, cancellationToken);
 
             if (discountsToApply.IsFailure)
             {
+                await RestoreProductState(originalProductState, cancellationToken);
                 return Result.Fail(discountsToApply.Errors);
             }
 
@@ -176,6 +204,7 @@ public sealed class OrderService : IOrderService
 
                 if (discountResult.IsFailure)
                 {
+                    await RestoreProductState(originalProductState, cancellationToken);
                     return Result.Fail(discountResult.Errors);
                 }
 
@@ -187,17 +216,18 @@ public sealed class OrderService : IOrderService
 
                     // Create discount history record
                     var discountHistory = DiscountHistory.Create(
-                        order.Value.Id,
-                            request.UserId,
-                            discount.Id,
-                            (DiscountType)discount.DiscountType,
-                            discountAmount,
-                            discount.Percentage,
-                            discount.FixedAmount,
-                            discount.Code);
+                        orderId,
+                        request.UserId,
+                        discount.Id,
+                        (DiscountType)discount.DiscountType,
+                        discountAmount,
+                        discount.Percentage,
+                        discount.FixedAmount,
+                        discount.Code);
 
                     if (discountHistory.IsFailure)
                     {
+                        await RestoreProductState(originalProductState, cancellationToken);
                         return Result.Fail(discountHistory.Errors);
                     }
 
@@ -212,8 +242,6 @@ public sealed class OrderService : IOrderService
                 await _discountService.CreateDiscountHistoryAsync(discountHistory, cancellationToken);
             }
 
-            var orderId = await _orderRepository.CreateAsync(order.Value, currencyCode, cancellationToken);
-
             foreach (var item in order.Value.OrderItems)
             {
                 await _orderRepository.CreateOrderItemAsync(item, orderId, cancellationToken);
@@ -223,15 +251,45 @@ public sealed class OrderService : IOrderService
                 new CreateAddressRequestDTO(request.ShippingAddress), cancellationToken);
 
             await _cartService.ClearCartAsync(request.UserId, cancellationToken);
+            await _discountService.ClearAppliedDiscountsAsync(existingCart.Value.Id, cancellationToken);
 
             await _unitOfWork.CommitAsync(cancellationToken);
 
-            return true;
+            var orderResponse = await GetByIdAsync(orderId, cancellationToken);
+
+            if (orderResponse.IsFailure)
+            {
+                await RestoreProductState(originalProductState, cancellationToken);
+                return Result.Fail(orderResponse.Errors);
+            }
+
+            return Result.Ok(orderResponse.Value);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error creating order");
+            await RestoreProductState(originalProductState, cancellationToken);
+
             await _unitOfWork.RollbackAsync(cancellationToken);
             throw;
+        }
+    }
+
+    private async Task RestoreProductState(Dictionary<Guid, Product> originalProductState, CancellationToken cancellationToken = default)
+    {
+        foreach (var product in originalProductState)
+        {
+            await _productService.UpdateAsync(
+            product.Key,
+            new UpdateProductRequestDTO(
+                product.Value.Name,
+                product.Value.Description,
+                product.Value.Price.Amount,
+                product.Value.Price.Code,
+                product.Value.Stock,
+                product.Value.ImageUrl,
+                (ProductStatusDTO)product.Value.Status,
+                new UpdateProductCategoryRequestDTO([.. product.Value.ProductCategories.Select(c => c.CategoryId)])), cancellationToken);
         }
     }
 
@@ -248,6 +306,18 @@ public sealed class OrderService : IOrderService
 
             var orderDomain = existingOrder.ToDomain();
 
+            if (!IsValidStatusTransition(orderDomain.Status, status))
+            {
+                return Result.Fail(
+                    Error.Failure(
+                        $"Invalid order status transition from {orderDomain.Status} to {status}.",
+                        "ERR_STATUS_TRANSITION"
+                    )
+                );
+            }
+
+            _logger.LogInformation($"Updating order {orderId} status from {orderDomain.Status} to {status}");
+
             orderDomain.UpdateStatus(status);
 
             await _orderRepository.UpdateAsync(orderDomain, cancellationToken);
@@ -260,6 +330,33 @@ public sealed class OrderService : IOrderService
             await _unitOfWork.RollbackAsync(cancellationToken);
             throw;
         }
+    }
+
+
+    private bool IsValidStatusTransition(OrderStatusEnum currentStatus, OrderStatusEnum newStatus)
+    {
+        // Allow keeping the same status
+        if (currentStatus == newStatus)
+            return true;
+
+        return (currentStatus, newStatus) switch
+        {
+            // Allow cancellation only in certain states
+            (OrderStatusEnum.Confirmed, OrderStatusEnum.Cancelled) => true,
+
+            // Refund only if Confirmed
+            (OrderStatusEnum.Confirmed, OrderStatusEnum.Refunded) => true,
+
+            // Default flow
+            (OrderStatusEnum.Confirmed, OrderStatusEnum.Shipped) => true,
+            (OrderStatusEnum.Shipped, OrderStatusEnum.Completed) => true,
+
+            // No changes allowed from these statuses
+            (OrderStatusEnum.Completed, _) => false,
+            (OrderStatusEnum.Cancelled, _) => false,
+            (OrderStatusEnum.Refunded, _) => false,
+            _ => false
+        };
     }
 
     public async Task<Result<bool>> DeleteOrderAsync(Guid id, CancellationToken cancellationToken = default)

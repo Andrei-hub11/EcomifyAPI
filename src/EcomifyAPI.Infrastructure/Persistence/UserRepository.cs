@@ -84,7 +84,7 @@ public class UserRepository : IUserRepository
         u.email AS Email,
         u.profile_picture_url AS ProfileImagePath,
         ua.value AS UserName,
-        COALESCE(ARRAY_AGG(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL), '{}') AS Roles
+        COALESCE(ARRAY_AGG(DISTINCT r.name) FILTER (WHERE r.name IN ('Admin', 'User')), '{}') AS Roles
     FROM users u
     JOIN user_entity ue ON u.keycloak_id = ue.id
     LEFT JOIN user_attribute ua ON ue.id = ua.user_id AND ua.name = 'normalizedUserName'
@@ -119,7 +119,7 @@ public class UserRepository : IUserRepository
         u.email AS Email,
         u.profile_picture_url AS ProfileImagePath,
         ua.value AS UserName,
-        COALESCE(ARRAY_AGG(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL), '{}') AS Roles
+        COALESCE(ARRAY_AGG(DISTINCT r.name) FILTER (WHERE r.name IN ('Admin', 'User')), '{}') AS Roles
     FROM users u
     JOIN user_entity ue ON u.keycloak_id = ue.id
     LEFT JOIN user_attribute ua ON ue.id = ua.user_id AND ua.name = 'normalizedUserName'

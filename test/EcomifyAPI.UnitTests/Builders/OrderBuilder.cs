@@ -10,7 +10,7 @@ public class OrderBuilder
     private Guid? _id = Guid.NewGuid();
     private string _userId = "user123";
     private DateTime _orderDate = DateTime.UtcNow;
-    private OrderStatusEnum _status = OrderStatusEnum.Created;
+    private OrderStatusEnum _status = OrderStatusEnum.Confirmed;
     private readonly DateTime _createdAt = DateTime.UtcNow;
     private readonly DateTime? _completedAt = null;
     private Address _shippingAddress;
@@ -59,21 +59,9 @@ public class OrderBuilder
         return this;
     }
 
-    public OrderBuilder AsCreated()
-    {
-        _status = OrderStatusEnum.Created;
-        return this;
-    }
-
     public OrderBuilder AsConfirmed()
     {
         _status = OrderStatusEnum.Confirmed;
-        return this;
-    }
-
-    public OrderBuilder AsProcessing()
-    {
-        _status = OrderStatusEnum.Processing;
         return this;
     }
 
@@ -106,7 +94,6 @@ public class OrderBuilder
         var order = Order.Create(
             _userId,
             _orderDate,
-            _status,
             _createdAt,
             _completedAt,
             _shippingAddress,
@@ -150,5 +137,31 @@ public class OrderBuilder
         }
 
         return order;
+    }
+
+    public Result<Order> BuildFrom()
+    {
+        var order = Build();
+
+        if (order.IsFailure)
+        {
+            return order;
+        }
+
+        var newOrder = Order.From(
+            order.Value.Id,
+            order.Value.UserId,
+            order.Value.OrderDate,
+            order.Value.Status,
+            order.Value.CreatedAt,
+            order.Value.CompletedAt,
+            order.Value.ShippingAddress,
+            order.Value.BillingAddress,
+            [.. order.Value.OrderItems],
+            order.Value.DiscountAmount,
+            order.Value.TotalWithDiscount
+        );
+
+        return newOrder;
     }
 }

@@ -1,0 +1,123 @@
+@using EcomifyAPI.Contracts.EmailModels
+@model PaymentRefundEmail;
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Refund Confirmation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fafafa;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #2ecc71;
+            margin-top: 0;
+            font-size: 24px;
+        }
+        .success-icon {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 48px;
+        }
+        .details {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #2ecc71;
+        }
+        .refund-amount {
+            font-size: 22px;
+            font-weight: bold;
+            color: #2ecc71;
+            margin: 15px 0;
+        }
+        .timeline {
+            margin: 25px 0;
+            padding: 0;
+            list-style: none;
+        }
+        .timeline li {
+            position: relative;
+            padding-left: 30px;
+            margin-bottom: 15px;
+        }
+        .timeline li:before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #2ecc71;
+            font-weight: bold;
+        }
+        .next-steps {
+            background-color: #edf7ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .footer {
+            font-size: 12px;
+            color: #777;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✓</div>
+        <h1>Your Refund Has Been Processed!</h1>
+        <p>Hello @Model.CustomerName,</p>
+        <p>Great news! We've successfully processed your refund request and your money is on its way back to you.</p>
+        
+        <div class="refund-amount">
+            @Model.Currency @Model.OrderAmount.ToString("N2")
+        </div>
+        
+        <div class="details">
+            <p><strong>Order ID:</strong> @Model.OrderNumber</p>
+            <p><strong>Refund Initiated:</strong> @DateTime.UtcNow.ToString("MMMM dd, yyyy HH:mm")</p>
+            <p><strong>Expected in Account:</strong> @Model.EstimatedRefundDate.ToString("MMMM dd, yyyy")</p>
+            <p><strong>Refund Note:</strong> @Model.RefundReason</p>
+        </div>
+        
+        <h2>Refund Timeline</h2>
+        <ul class="timeline">
+            <li><strong>Refund Approved</strong> - We've approved your refund request</li>
+            <li><strong>Refund Processed</strong> - Your refund has been processed</li>
+            <li><strong>Money Transfer</strong> - The funds are being transferred to your payment method</li>
+            <li><strong>Refund Complete</strong> - You should see the money back in your account within 3-5 business days</li>
+        </ul>
+        
+        <div class="next-steps">
+            <h3>What happens next?</h3>
+            <p>Your refund is now being processed by your payment provider. Depending on your bank or credit card company, it typically takes 3-5 business days for the refunded amount to appear in your account.</p>
+            <p>You don't need to do anything further - we'll take care of everything!</p>
+        </div>
+        
+        <p>We appreciate your business and hope to see you again soon. If you have any questions or concerns about your refund, please don't hesitate to contact our customer support team.</p>
+        
+        <p>Thank you for shopping with us!</p>
+        
+        <div class="footer">
+            <p>This is an automated message. Please do not reply to this email.</p>
+            <p>&copy; @DateTime.Now.Year Ecomify. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html> 

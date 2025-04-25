@@ -191,7 +191,7 @@ internal class PercentageDiscountStrategy : IDiscountStrategyResolver
                     discountValue = cartAmount - totalDiscount;
                 }
 
-                totalDiscount += discountValue;
+                totalDiscount += discountValue ?? 0;
 
                 if (totalDiscount >= cartAmount)
                 {

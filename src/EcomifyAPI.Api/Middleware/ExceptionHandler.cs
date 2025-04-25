@@ -114,7 +114,7 @@ public class ExceptionHandler : IExceptionHandler
         };
     }
 
-    private ProblemDetails CreateValidationErrorDetails(
+    private CustomProblemDetails CreateValidationErrorDetails(
         HttpContext context,
         HttpStatusCode statusCode,
         string title,

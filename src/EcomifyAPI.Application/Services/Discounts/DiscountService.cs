@@ -91,7 +91,10 @@ public sealed class DiscountService : IDiscountService
                 return Result.Fail(cart.Errors);
             }
 
-            var discount = await _discountRepository.GetDiscountToApply(cart.Value.Id, cart.Value.TotalAmount.Amount, cancellationToken);
+            var productIds = cart.Value.Items.Select(i => i.ProductId).ToList();
+
+            var discount = await _discountRepository.GetAvailableDiscountsForCart
+            (cart.Value.Id, cart.Value.TotalAmount.Amount, userId, productIds, cancellationToken);
 
             if (discount is null)
             {
@@ -208,6 +211,28 @@ public sealed class DiscountService : IDiscountService
 
             await _discountRepository.DeleteDiscountAsync(id, cancellationToken);
             await _unitOfWork.CommitAsync(cancellationToken);
+
+            return Result.Ok(true);
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<Result<bool>> ClearAppliedDiscountsAsync(Guid cartId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var appliedDiscounts = await _discountRepository.GetAppliedDiscountsAsync(cartId, cancellationToken);
+
+            if (appliedDiscounts.Count() == 0)
+            {
+                return Result.Ok(true);
+            }
+
+            await _discountRepository.ClearAppliedDiscountsAsync(cartId, cancellationToken);
 
             return Result.Ok(true);
         }

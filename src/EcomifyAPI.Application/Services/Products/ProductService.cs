@@ -232,10 +232,9 @@ public sealed class ProductService : IProductService
 
             isChanged |= product.Value.UpdateStatus(request.Status.ToProductStatusDomain());
 
-            foreach (var category in request.Categories)
+            foreach (var categoryId in request.Categories.CategoryIds)
             {
-                isChanged |= product.Value.UpdateCategories([.. category.CategoryIds
-                .Select(categoryId => new ProductCategory(id, categoryId))]);
+                isChanged |= product.Value.UpdateCategories([new ProductCategory(id, categoryId)]);
             }
 
             if (isChanged)

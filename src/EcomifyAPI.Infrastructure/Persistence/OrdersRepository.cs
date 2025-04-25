@@ -233,12 +233,12 @@ public class OrderRepository : IOrderRepository
     public async Task<Guid> CreateAsync(Order order, string currencyCode, CancellationToken cancellationToken = default)
     {
         const string query = @"
-            INSERT INTO orders (id, user_keycloak_id, total_amount, discount_amount, total_with_discount, currency_code, 
+            INSERT INTO orders (user_keycloak_id, total_amount, discount_amount, total_with_discount, currency_code, 
             order_date, status, created_at, completed_at, 
             shipping_street, shipping_number, shipping_city, shipping_state, shipping_zip_code, 
             shipping_country, shipping_complement, billing_street, billing_number, billing_city, billing_state, 
             billing_zip_code, billing_country, billing_complement)
-            VALUES (@Id, @UserId, @TotalAmount, @DiscountAmount, @TotalWithDiscount, @CurrencyCode, 
+            VALUES (@UserId, @TotalAmount, @DiscountAmount, @TotalWithDiscount, @CurrencyCode, 
             @OrderDate, @Status, @CreatedAt, @CompletedAt, 
             @ShippingStreet, @ShippingNumber, @ShippingCity, @ShippingState, @ShippingZipCode, 
             @ShippingCountry, @ShippingComplement, @BillingStreet, @BillingNumber, @BillingCity, @BillingState, 
@@ -251,7 +251,6 @@ public class OrderRepository : IOrderRepository
                 query,
                 new
                 {
-                    order.Id,
                     order.UserId,
                     TotalAmount = order.TotalAmount.Amount,
                     order.DiscountAmount,

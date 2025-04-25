@@ -1,4 +1,5 @@
 using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Domain.Entities;
 using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
 using EcomifyAPI.UnitTests.Builders;
@@ -91,6 +92,39 @@ public class CartTests
         totalAmount.Amount.ShouldBe(0);
         totalAmount.Code.ShouldBe("BRL");
     }
+
+    [Fact]
+    public void AddItem_ShouldAddItem_WhenProductIdDoesNotExist()
+    {
+        // Arrange
+        var product = CreateSampleProduct();
+        var item = new CartItem(product.Id, 1, new Money("BRL", 20));
+        var result = _builder.BuildFrom(new List<CartItem> { item });
+        result.IsFailure.ShouldBeFalse();
+        var cart = result.Value;
+
+        // Act
+        cart.AddItem(product, 1, new Money("BRL", 20));
+
+        // Assert
+        cart.Items.ShouldNotBeEmpty();
+        cart.Items.ShouldContain(item);
+    }
+
+    [Fact]
+    public void AddItem_ShouldUpdateQuantity_WhenProductIdExists()
+    {
+        // Arrange
+        var product = CreateSampleProduct();
+        var item = new CartItem(product.Id, 1, new Money("BRL", 20));
+        var result = _builder.BuildFrom([item]);
+        result.IsFailure.ShouldBeFalse();
+        var cart = result.Value;
+
+        // Act
+        cart.AddItem(product, 1, new Money("BRL", 20));
+    }
+
 
     [Fact]
     public void RemoveItem_ShouldRemoveItem_WhenProductIdExists()
@@ -205,5 +239,20 @@ public class CartTests
         // Assert
         cart.TotalAmount.Amount.ShouldBe(100);
         cart.TotalWithDiscount.Amount.ShouldBe(80);
+    }
+
+    private static Product CreateSampleProduct()
+    {
+        var result = Product.Create(
+            "Sample Product",
+            "Description",
+            100,
+            "BRL",
+            10,
+            "http://example.com/image.jpg",
+            ProductStatusEnum.Active,
+            Guid.NewGuid());
+
+        return result.Value!;
     }
 }

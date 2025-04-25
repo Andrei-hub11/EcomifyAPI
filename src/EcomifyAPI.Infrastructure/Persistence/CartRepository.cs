@@ -88,7 +88,7 @@ public class CartRepository : ICartRepository
     ";
 
         var discounts = await Connection.QueryAsync<DiscountCartMapping>(
-            new CommandDefinition(query, new { ProductIds = productIds }, cancellationToken: cancellationToken,
+            new CommandDefinition(query, new { ProductIds = productIds.ToArray() }, cancellationToken: cancellationToken,
             transaction: Transaction)
         );
 

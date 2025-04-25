@@ -48,6 +48,7 @@ public static class ErrorExtensions
             ErrorType.Validation => StatusCodes.Status422UnprocessableEntity,
             ErrorType.NotFound => StatusCodes.Status404NotFound,
             ErrorType.Unauthorized => StatusCodes.Status401Unauthorized,
+            ErrorType.Failure => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status500InternalServerError,
         };
 

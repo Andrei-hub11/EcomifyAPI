@@ -9,6 +9,7 @@ public interface IProductRepository : IRepository
 {
     Task<IEnumerable<ProductMapping>> GetAsync(CancellationToken cancellationToken = default);
     Task<ProductMapping?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IEnumerable<ProductMapping>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken cancellationToken = default);
     Task<FilteredResponseMapping<ProductMapping>> GetLowStockProductsAsync(ProductFilterRequestDTO request,
     CancellationToken cancellationToken = default);
     Task<CategoryMapping?> GetCategoryByIdAsync(Guid id, CancellationToken cancellationToken = default);

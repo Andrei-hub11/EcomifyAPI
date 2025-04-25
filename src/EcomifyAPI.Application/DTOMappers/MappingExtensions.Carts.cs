@@ -44,25 +44,25 @@ public static class MappingExtensionsCarts
         return !dtos.Any() ? [] : [.. dtos.Select(i => i.ToDomain())];
     }
 
-    private static CartItemResponseDTO ToCartItemResponseDTO(this CartItem item)
+    private static CartItemResponseDTO ToCartItemResponseDTO(this CartItem item, IEnumerable<ProductResponseDTO> products)
     {
         return new CartItemResponseDTO(
             item.Id,
             item.ProductId,
+            products.FirstOrDefault(p => p.Id == item.ProductId) ?? throw new InvalidOperationException($"Product with id = '{item.ProductId}' not found"),
             item.Quantity,
-            new MoneyDTO(item.UnitPrice.Code, item.UnitPrice.Amount),
-            new MoneyDTO(item.TotalPrice.Code, item.TotalPrice.Amount)
+            new MoneyDTO(item.UnitPrice.Code, item.UnitPrice.Amount)
         );
     }
 
-    public static CartResponseDTO ToDTO(this Cart cart)
+    public static CartResponseDTO ToDTO(this Cart cart, IEnumerable<ProductResponseDTO> products)
     {
         return new CartResponseDTO(
             cart.Id,
             cart.UserId,
-            cart.Items.Count != 0 ? cart.Items.Select(i => i.ToCartItemResponseDTO()).ToList() : [],
+            cart.Items.Count != 0 ? cart.Items.Select(i => i.ToCartItemResponseDTO(products)).ToList() : [],
             new MoneyDTO(cart.TotalAmount.Code, cart.TotalAmount.Amount),
-            new MoneyDTO(cart.TotalWithDiscount.Code, cart.TotalWithDiscount.Amount),
+            cart.TotalWithDiscount.Amount > 0 ? new MoneyDTO(cart.TotalWithDiscount.Code, cart.TotalWithDiscount.Amount) : null,
             cart.CreatedAt,
             cart.UpdatedAt
         );

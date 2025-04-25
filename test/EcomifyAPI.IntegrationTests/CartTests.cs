@@ -131,10 +131,10 @@ public class CartTests : IAsyncLifetime
 
         products.ShouldNotBeNull();
         products.ShouldNotBeEmpty();
-        var productId = products[0].Id;
+        var product = products[0];
 
         var addItemRequest = new AddItemRequestBuilder()
-            .WithProductId(productId)
+            .WithProductId(product.Id)
             .WithQuantity(2)
             .Build();
 
@@ -156,7 +156,65 @@ public class CartTests : IAsyncLifetime
         cart.ShouldNotBeNull();
         cart.Items.Count.ShouldBe(1);
         cart.Items[0].Quantity.ShouldBe(2);
-        cart.Items[0].ProductId.ShouldBe(productId);
+        cart.Items[0].ProductId.ShouldBe(product.Id);
+        cart.Items[0].Product.Name.ShouldBe(product.Name);
+        cart.Items[0].Product.Price.ShouldBe(product.Price);
+        cart.Items[0].Product.ImageUrl.ShouldBe(product.ImageUrl);
+    }
+
+    [Fact]
+    public async Task AddItem_WhenItemAlreadyExists_ShouldIncreaseQuantityInsteadOfAddingNewItem()
+    {
+        // Arrange
+        await AuthenticateAdmin();
+
+        var categoryRequest = new CategoryRequestBuilder()
+            .WithName("Gadgets")
+            .WithDescription("Cool gadgets")
+            .Build();
+
+        var categoryCreateResponse = await _client.PostAsJsonAsync($"{_baseUrl}/products/categories", categoryRequest);
+        categoryCreateResponse.EnsureSuccessStatusCode();
+
+        var getCategoriesResponse = await _client.GetAsync($"{_baseUrl}/products/categories");
+        var categories = await getCategoriesResponse.Content.ReadFromJsonAsync<IReadOnlyList<CategoryResponseDTO>>();
+        var categoryId = categories![0].Id;
+
+        var productRequest = new ProductRequestBuilder()
+            .WithName("Bluetooth Speaker")
+            .WithPrice(199.90m)
+            .WithCategories(categoryId)
+            .Build();
+
+        var productCreateResponse = await _client.PostAsJsonAsync($"{_baseUrl}/products", productRequest);
+        productCreateResponse.EnsureSuccessStatusCode();
+
+        var getProductsResponse = await _client.GetAsync($"{_baseUrl}/products");
+        var products = await getProductsResponse.Content.ReadFromJsonAsync<IReadOnlyList<ProductResponseDTO>>();
+        var product = products![0];
+
+        var addItemRequest = new AddItemRequestBuilder()
+            .WithProductId(product.Id)
+            .WithQuantity(1)
+            .Build();
+
+        // Force cart creation
+        _ = await _client.GetAsync($"{_baseUrl}/carts/{_adminId}");
+
+        // Act - Add the product once
+        var firstAddResponse = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_adminId}", addItemRequest);
+        firstAddResponse.EnsureSuccessStatusCode();
+
+        // Act - Add the same product again
+        var secondAddResponse = await _client.PostAsJsonAsync($"{_baseUrl}/carts/{_adminId}", addItemRequest);
+        secondAddResponse.EnsureSuccessStatusCode();
+
+        // Assert - Should still have only one item in cart, but quantity = 2
+        var cartResponse = await secondAddResponse.Content.ReadFromJsonAsync<CartResponseDTO>();
+        cartResponse.ShouldNotBeNull();
+        cartResponse.Items.Count.ShouldBe(1);
+        cartResponse.Items[0].ProductId.ShouldBe(product.Id);
+        cartResponse.Items[0].Quantity.ShouldBe(2); // 1 + 1 = 2
     }
 
     [Fact]
@@ -190,7 +248,7 @@ public class CartTests : IAsyncLifetime
             .WithDescription("Test Description")
             .Build();
 
-        var categoryResponse = await _client.PostAsJsonAsync($"{_baseUrl}/products/categories", categoryRequest);
+        await _client.PostAsJsonAsync($"{_baseUrl}/products/categories", categoryRequest);
         var categories = await _client.GetAsync($"{_baseUrl}/products/categories");
         var categoryId = (await categories.Content.ReadFromJsonAsync<IReadOnlyList<CategoryResponseDTO>>())![0].Id;
 
@@ -558,7 +616,6 @@ public class CartTests : IAsyncLifetime
         var clearResponse = await _client.DeleteAsync($"{_baseUrl}/carts/{userId}");
         clearResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
-
 
     public Task InitializeAsync() => Task.CompletedTask;
 

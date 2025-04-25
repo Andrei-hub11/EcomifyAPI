@@ -17,14 +17,11 @@ public static class MappingExtensionsOrders
     {
         return status switch
         {
-            OrderStatusDTO.Created => OrderStatusEnum.Created,
-            OrderStatusDTO.Pending => OrderStatusEnum.Pending,
-            OrderStatusDTO.Processing => OrderStatusEnum.Processing,
             OrderStatusDTO.Confirmed => OrderStatusEnum.Confirmed,
-            OrderStatusDTO.Failed => OrderStatusEnum.Failed,
             OrderStatusDTO.Shipped => OrderStatusEnum.Shipped,
             OrderStatusDTO.Completed => OrderStatusEnum.Completed,
             OrderStatusDTO.Cancelled => OrderStatusEnum.Cancelled,
+            OrderStatusDTO.Refunded => OrderStatusEnum.Refunded,
             _ => throw new ArgumentException("Invalid order status"),
         };
     }
@@ -33,14 +30,11 @@ public static class MappingExtensionsOrders
     {
         return status switch
         {
-            OrderStatusEnum.Created => OrderStatusDTO.Created,
-            OrderStatusEnum.Pending => OrderStatusDTO.Pending,
-            OrderStatusEnum.Processing => OrderStatusDTO.Processing,
             OrderStatusEnum.Confirmed => OrderStatusDTO.Confirmed,
-            OrderStatusEnum.Failed => OrderStatusDTO.Failed,
             OrderStatusEnum.Shipped => OrderStatusDTO.Shipped,
             OrderStatusEnum.Completed => OrderStatusDTO.Completed,
             OrderStatusEnum.Cancelled => OrderStatusDTO.Cancelled,
+            OrderStatusEnum.Refunded => OrderStatusDTO.Refunded,
             _ => throw new ArgumentException("Invalid order status"),
         };
     }

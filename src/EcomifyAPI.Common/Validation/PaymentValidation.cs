@@ -4,6 +4,23 @@ namespace EcomifyAPI.Common.Validation;
 
 public class PaymentValidation
 {
+    public static IReadOnlyList<ValidationError> ValidatePayPal(string payerEmail, Guid payerId)
+    {
+        var errors = new List<ValidationError>();
+
+        if (string.IsNullOrWhiteSpace(payerEmail))
+        {
+            errors.Add(ValidationError.Create("Payer email is required", "ERR_PAYER_EMAIL_REQUIRED", "PayerEmail"));
+        }
+
+        if (payerId == Guid.Empty)
+        {
+            errors.Add(ValidationError.Create("Payer ID is required", "ERR_PAYER_ID_REQUIRED", "PayerId"));
+        }
+
+        return errors;
+    }
+
     public static IReadOnlyList<ValidationError> ValidateCreditCard(string cardNumber, string expirationDate, string cvv)
     {
         var errors = new List<ValidationError>();

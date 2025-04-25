@@ -7,5 +7,6 @@ public enum PaymentStatusDTO
     Failed = 3,
     RefundRequested = 4,
     Refunded = 5,
-    Unknown = 6
+    Unknown = 6,
+    Cancelled = 7
 }

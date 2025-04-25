@@ -1,6 +1,7 @@
 using EcomifyAPI.Contracts.DapperModels;
 using EcomifyAPI.Contracts.Enums;
 using EcomifyAPI.Contracts.Response;
+using EcomifyAPI.Domain.Entities;
 using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
 
@@ -38,6 +39,7 @@ public static class MappingExtensionsPayment
             PaymentStatusEnum.RefundRequested => PaymentStatusDTO.RefundRequested,
             PaymentStatusEnum.Refunded => PaymentStatusDTO.Refunded,
             PaymentStatusEnum.Unknown => PaymentStatusDTO.Unknown,
+            PaymentStatusEnum.Cancelled => PaymentStatusDTO.Cancelled,
             _ => throw new ArgumentException("Invalid payment status")
         };
     }
@@ -52,6 +54,7 @@ public static class MappingExtensionsPayment
             PaymentStatusDTO.RefundRequested => PaymentStatusEnum.RefundRequested,
             PaymentStatusDTO.Refunded => PaymentStatusEnum.Refunded,
             PaymentStatusDTO.Unknown => PaymentStatusEnum.Unknown,
+            PaymentStatusDTO.Cancelled => PaymentStatusEnum.Cancelled,
             _ => throw new ArgumentException("Invalid payment status")
         };
     }
@@ -92,6 +95,38 @@ public static class MappingExtensionsPayment
 
     public static IReadOnlyList<PaymentResponseDTO> ToDTO(this IEnumerable<PaymentRecordMapping> payments)
     {
-        return [.. payments.Select(payment => payment.ToDTO())];
+        return [.. payments.Select(p => p.ToDTO())];
+    }
+
+    public static PaymentRecord ToDomain(this PaymentRecordMapping payment)
+    {
+        PaymentRecord result;
+
+        if (!string.IsNullOrEmpty(payment.CcLastFourDigits))
+        {
+            result = PaymentRecord.From(
+                payment.PaymentId,
+                payment.OrderId,
+                new Money(payment.CurrencyCode, payment.Amount),
+                payment.PaymentMethod.ToDomain(),
+                payment.TransactionId,
+                payment.GatewayResponse,
+                new CreditCardDetails(payment.CcLastFourDigits, payment.CcBrand)
+            );
+        }
+        else
+        {
+            result = PaymentRecord.From(
+                payment.PaymentId,
+                payment.OrderId,
+                new Money(payment.CurrencyCode, payment.Amount),
+                payment.PaymentMethod.ToDomain(),
+                payment.TransactionId,
+                payment.GatewayResponse,
+                new PayPalDetails(payment.PaypalEmail, payment.PaypalPayerId)
+            );
+        }
+
+        return result;
     }
 }

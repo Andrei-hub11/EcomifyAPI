@@ -179,7 +179,7 @@ public class DiscountRepository : IDiscountRepository
     public async Task<DiscountMapping?> GetDiscountByCodeAsync(string code, CancellationToken cancellationToken = default)
     {
         const string query = @"
-            SELECT id, code, discount_type as DiscountType, discount_amount as DiscountAmount, max_uses as MaxUses, 
+            SELECT id, code, discount_type as DiscountType, fixed_amount as FixedAmount, percentage as Percentage, max_uses as MaxUses, 
             uses, min_order_amount as MinOrderAmount, max_uses_per_user as MaxUsesPerUser, valid_from as ValidFrom, 
             valid_to as ValidTo, is_active as IsActive, auto_apply as AutoApply, created_at as CreatedAt FROM discounts 
             WHERE code = @Code;
@@ -194,9 +194,9 @@ public class DiscountRepository : IDiscountRepository
     public async Task<DiscountMapping?> GetDiscountByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         const string query = @"
-            SELECT id, code, discount_type as DiscountType, discount_amount as DiscountAmount, max_uses as MaxUses, 
+            SELECT id, code, discount_type as DiscountType, fixed_amount as FixedAmount, percentage as Percentage, max_uses as MaxUses, 
             uses, min_order_amount as MinOrderAmount, max_uses_per_user as MaxUsesPerUser, valid_from as ValidFrom, 
-            valid_to as ValidTo, is_active as IsActive, created_at as CreatedAt FROM coupons WHERE id = @Id;
+            valid_to as ValidTo, is_active as IsActive, auto_apply as AutoApply, created_at as CreatedAt FROM discounts WHERE id = @Id;
         ";
 
         var discount = await Connection.QueryAsync<DiscountMapping>(
@@ -209,7 +209,20 @@ public class DiscountRepository : IDiscountRepository
     {
         const string query = @"
             SELECT
-                d.code AS discountCode, d.discount_amount AS discountAmount,
+                d.id,
+                d.code, 
+                d.discount_type AS discountType,
+                d.fixed_amount AS fixedAmount,
+                d.percentage AS percentage,
+                d.max_uses AS maxUses,
+                d.uses AS uses,
+                d.min_order_amount AS minOrderAmount,
+                d.max_uses_per_user AS maxUsesPerUser,
+                d.valid_from AS validFrom,
+                d.valid_to AS validTo,
+                d.is_active AS isActive,
+                d.auto_apply AS autoApply,
+                d.created_at AS createdAt,
                 ad.applied_at AS appliedAt 
                 FROM applied_discounts ad
                 JOIN discounts d ON d.id = ad.discount_id
@@ -226,7 +239,7 @@ public class DiscountRepository : IDiscountRepository
     public async Task<int> GetUserUsagesAsync(string userId, CancellationToken cancellationToken = default)
     {
         const string query = @"
-            SELECT COUNT(*) FROM applied_coupons WHERE customer_id = @CustomerId;
+            SELECT COUNT(*) FROM discount_history WHERE customer_id = @CustomerId;
         ";
 
         var usages = await Connection.QueryAsync<int>(
@@ -292,42 +305,81 @@ public class DiscountRepository : IDiscountRepository
         return result;
     }
 
-    public async Task<IEnumerable<DiscountMapping>> GetDiscountToApply(Guid cartId, decimal cartTotalAmount,
-    CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<DiscountMapping>> GetAvailableDiscountsForCart(Guid cartId, decimal cartTotalAmount,
+    string customerId, IEnumerable<Guid> productIds, CancellationToken cancellationToken = default)
     {
         const string query = @"
-         SELECT 
-            d.id, 
-            d.code, 
-            d.discount_type as DiscountType, 
-            d.discount_amount as DiscountAmount, 
-            d.percentage as Percentage, 
-            d.fixed_amount as FixedAmount, 
-            d.max_uses as MaxUses, 
-            d.uses, 
-            d.min_order_amount as MinOrderAmount, 
-            d.max_uses_per_user as MaxUsesPerUser, 
-            d.valid_from as ValidFrom, 
-            d.valid_to as ValidTo, 
-            d.is_active as IsActive, 
-            d.created_at as CreatedAt 
+        SELECT DISTINCT
+            d.id,
+            d.code,
+            d.discount_type as DiscountType,
+            d.percentage as Percentage,
+            d.fixed_amount as FixedAmount,
+            d.max_uses as MaxUses,
+            d.uses,
+            d.min_order_amount as MinOrderAmount,
+            d.max_uses_per_user as MaxUsesPerUser,
+            d.valid_from as ValidFrom,
+            d.valid_to as ValidTo,
+            d.is_active as IsActive,
+            d.auto_apply as AutoApply,
+            d.created_at as CreatedAt,
+            CASE WHEN ad.cart_id IS NOT NULL THEN TRUE ELSE FALSE END as IsApplied
         FROM discounts d
-        LEFT JOIN applied_discounts ad ON d.id = ad.discount_id
+        LEFT JOIN applied_discounts ad ON d.id = ad.discount_id AND ad.cart_id = '560dda48-f0bd-44a8-a34e-44fb8efaa3d7'
         WHERE d.is_active = TRUE
         AND d.valid_from <= CURRENT_TIMESTAMP
         AND d.valid_to >= CURRENT_TIMESTAMP
-        AND (d.max_uses > d.uses OR d.max_uses IS NULL) 
-        AND (d.max_uses_per_user > (SELECT COUNT(*) FROM applied_discounts 
-        WHERE user_keycloak_id = @UserId AND discount_id = d.id) OR d.max_uses_per_user IS NULL)
-        AND d.min_order_amount <= @CartTotalAmount
-        AND NOT EXISTS (SELECT 1 FROM applied_discounts WHERE cart_id = @CartId AND discount_id = d.id)
+        AND (d.max_uses > d.uses OR d.max_uses IS NULL)
+        AND (d.max_uses_per_user > (SELECT COUNT(*) FROM discount_history
+                          WHERE customer_id = @CustomerId AND discount_id = d.id) 
+                          OR d.max_uses_per_user IS NULL)
+        AND d.min_order_amount <= @MinOrderAmount
+        AND (
+            /* Include already applied discounts */
+            (ad.cart_id IS NOT NULL)
+            OR
+            /* Include auto-apply discounts that are linked to categories AND match product categories */
+            (d.auto_apply = TRUE AND ad.cart_id IS NULL AND EXISTS (
+                SELECT 1 FROM discount_categories dc WHERE dc.discount_id = d.id
+            ) AND EXISTS (
+                SELECT 1 
+                FROM discount_categories dc
+                JOIN product_categories pc ON dc.category_id = pc.category_id
+                WHERE dc.discount_id = d.id
+                AND pc.product_id = ANY(@ProductIds)
+            ))
+        )
         ORDER BY d.valid_from DESC;
         ";
 
         var discount = await Connection.QueryAsync<DiscountMapping>(
-            new CommandDefinition(query, new { CartId = cartId, MinOrderAmount = cartTotalAmount }, cancellationToken: cancellationToken, transaction: Transaction));
+            new CommandDefinition(query,
+            new
+            {
+                CartId = cartId,
+                MinOrderAmount = cartTotalAmount,
+                ProductIds = productIds.ToArray(),
+                CustomerId = customerId
+            },
+                cancellationToken: cancellationToken,
+                transaction: Transaction));
 
         return [.. discount];
+    }
+
+    public async Task<IEnumerable<AppliedDiscountMapping>> GetAppliedDiscountsAsync(Guid cartId,
+    CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+            SELECT ad.cart_id AS cartId, ad.discount_id AS discountId, 
+            ad.applied_at AS appliedAt FROM applied_discounts ad WHERE ad.cart_id = @CartId;
+        ";
+
+        var appliedDiscounts = await Connection.QueryAsync<AppliedDiscountMapping>(
+            new CommandDefinition(query, new { CartId = cartId }, cancellationToken: cancellationToken, transaction: Transaction));
+
+        return [.. appliedDiscounts];
     }
 
 
@@ -418,9 +470,9 @@ public class DiscountRepository : IDiscountRepository
     public async Task UpdateDiscountAsync(Discount coupon, CancellationToken cancellationToken = default)
     {
         const string query = @"
-            UPDATE discounts SET code = @Code, discount_type = @DiscountType, discount_amount = @DiscountAmount, 
+            UPDATE discounts SET code = @Code, discount_type = @DiscountType, fixed_amount = @FixedAmount, percentage = @Percentage, 
             max_uses = @MaxUses, uses = @Uses, min_order_amount = @MinOrderAmount, max_uses_per_user = @MaxUsesPerUser, 
-            valid_from = @ValidFrom, valid_to = @ValidTo, is_active = @IsActive, created_at = @CreatedAt WHERE id = @Id;
+            valid_from = @ValidFrom, valid_to = @ValidTo, is_active = @IsActive, auto_apply = @AutoApply, created_at = @CreatedAt WHERE id = @Id;
         ";
 
         await Connection.ExecuteAsync(
@@ -435,5 +487,15 @@ public class DiscountRepository : IDiscountRepository
 
         await Connection.ExecuteAsync(
             new CommandDefinition(query, new { Id = id }, cancellationToken: cancellationToken, transaction: Transaction));
+    }
+
+    public async Task ClearAppliedDiscountsAsync(Guid cartId, CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+            DELETE FROM applied_discounts WHERE cart_id = @CartId;
+        ";
+
+        await Connection.ExecuteAsync(
+            new CommandDefinition(query, new { CartId = cartId }, cancellationToken: cancellationToken, transaction: Transaction));
     }
 }

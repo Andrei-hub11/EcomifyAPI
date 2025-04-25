@@ -16,7 +16,9 @@ public interface IDiscountRepository : IRepository
     CancellationToken cancellationToken = default);
     Task<IEnumerable<DiscountMapping>> GetRecentDiscountsByCustomerIdAsync(string customerId, DateTime startDate,
     CancellationToken cancellationToken = default);
-    Task<IEnumerable<DiscountMapping>> GetDiscountToApply(Guid cartId, decimal cartTotalAmount,
+    Task<IEnumerable<DiscountMapping>> GetAvailableDiscountsForCart(Guid cartId, decimal cartTotalAmount, string customerId,
+    IEnumerable<Guid> productIds, CancellationToken cancellationToken = default);
+    Task<IEnumerable<AppliedDiscountMapping>> GetAppliedDiscountsAsync(Guid cartId,
     CancellationToken cancellationToken = default);
     Task<Guid> CreateDiscountAsync(Discount coupon, CancellationToken cancellationToken = default);
     Task CreateDiscountHistoryAsync(DiscountHistory discountHistory, CancellationToken cancellationToken = default);
@@ -24,4 +26,5 @@ public interface IDiscountRepository : IRepository
     Task ApplyDiscountToCartAsync(Guid cartId, Guid discountId, CancellationToken cancellationToken = default);
     Task UpdateDiscountAsync(Discount coupon, CancellationToken cancellationToken = default);
     Task DeleteDiscountAsync(Guid id, CancellationToken cancellationToken = default);
+    Task ClearAppliedDiscountsAsync(Guid cartId, CancellationToken cancellationToken = default);
 }

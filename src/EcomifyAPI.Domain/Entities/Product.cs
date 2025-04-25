@@ -135,11 +135,6 @@ public sealed class Product
             return false;
         }
 
-        if (Stock == quantity)
-        {
-            return false;
-        }
-
         Stock -= quantity;
 
         return true;

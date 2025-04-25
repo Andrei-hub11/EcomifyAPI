@@ -25,7 +25,7 @@ public class OrderTests
         // Assert
         result.IsFailure.ShouldBeFalse();
         result.Value.ShouldNotBeNull();
-        result.Value.Status.ShouldBe(OrderStatusEnum.Created);
+        result.Value.Status.ShouldBe(OrderStatusEnum.Confirmed);
     }
 
     [Fact]
@@ -67,34 +67,6 @@ public class OrderTests
     }
 
     [Fact]
-    public void ProcessPayment_ShouldUpdateStatus_WhenOrderIsCreated()
-    {
-        // Arrange
-        var order = _builder.Build().Value;
-        var product = CreateSampleProduct();
-        order!.AddItem(product, 1, new Money("USD", 100));
-
-        // Act
-        order.ProcessPayment();
-
-        // Assert
-        order.Status.ShouldBe(OrderStatusEnum.Processing);
-    }
-
-    [Fact]
-    public void ProcessPayment_ShouldThrow_WhenOrderIsConfirmed()
-    {
-        // Arrange
-        var order = _builder
-            .WithStatus(OrderStatusEnum.Confirmed)
-            .Build()
-            .Value;
-
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => order!.ProcessPayment());
-    }
-
-    [Fact]
     public void AddItem_ShouldSucceed_WhenOrderIsCreated()
     {
         // Arrange
@@ -125,20 +97,6 @@ public class OrderTests
         // Assert
         order.OrderItems.Count.ShouldBe(1);
         order.TotalAmount.Amount.ShouldBe(100);
-    }
-
-    [Fact]
-    public void AddItem_ShouldFail_WhenOrderIsProcessing()
-    {
-        // Arrange
-        var order = _builder
-            .WithStatus(OrderStatusEnum.Processing)
-            .Build()
-            .Value;
-        var product = CreateSampleProduct();
-
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => order!.AddItem(product, 1, new Money("USD", 100)));
     }
 
     [Fact]
@@ -192,11 +150,11 @@ public class OrderTests
     }
 
     [Fact]
-    public void RemoveItem_ShouldFail_WhenOrderIsProcessing()
+    public void RemoveItem_ShouldFail_WhenOrderIsConfirmed()
     {
         // Arrange
         var order = _builder
-            .WithStatus(OrderStatusEnum.Processing)
+            .WithStatus(OrderStatusEnum.Confirmed)
             .Build()
             .Value;
         var product = CreateSampleProduct();

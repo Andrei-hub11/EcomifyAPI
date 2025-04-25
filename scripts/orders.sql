@@ -1,5 +1,5 @@
 CREATE TABLE orders (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_keycloak_id VARCHAR(36) NOT NULL,
     total_amount DECIMAL(18,2) NOT NULL,
     discount_amount DECIMAL(18,2) NOT NULL DEFAULT 0,

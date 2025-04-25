@@ -72,7 +72,7 @@ public class UpdateProductRequestBuilder
             _stock,
             _imageUrl,
             _status,
-            [.. _categoryIds.Select(id => new UpdateProductCategoryRequestDTO([id]))]
+            new UpdateProductCategoryRequestDTO(_categoryIds)
         );
     }
 }

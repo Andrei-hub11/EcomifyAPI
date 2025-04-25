@@ -75,7 +75,11 @@ public class CartService : ICartService
 
             await _unitOfWork.CommitAsync(cancellationToken);
 
-            return cartResult.Value.ToDTO();
+            var products = await _productRepository.GetByIdsAsync(cartResult.Value.Items.Select(i => i.ProductId), cancellationToken);
+
+            await CalculateDiscountsAsync(cartResult.Value, cancellationToken);
+
+            return cartResult.Value.ToDTO(products.ToResponseDTO());
         }
         catch
         {
@@ -133,12 +137,27 @@ public class CartService : ICartService
                 return Result.Fail(product.Errors);
             }
 
+
+            var itemExists = cartResult.Value.Items.FirstOrDefault(i => i.ProductId == productId);
             cartResult.Value.AddItem(product.Value, quantity, new Money("BRL", product.Value.Price.Amount));
-            await _cartRepository.AddItemAsync(cartResult.Value.Id, cartResult.Value.Items[^1], cancellationToken);
+
+            if (itemExists is null)
+            {
+                await _cartRepository.AddItemAsync(cartResult.Value.Id, cartResult.Value.Items[^1], cancellationToken);
+            }
+
+            if (itemExists is not null)
+            {
+                await _cartRepository.UpdateItemQuantityAsync(cartResult.Value.Id, productId, itemExists, cancellationToken);
+            }
 
             await _unitOfWork.CommitAsync(cancellationToken);
 
-            return cartResult.Value.ToDTO();
+            var products = await _productRepository.GetByIdsAsync(cartResult.Value.Items.Select(i => i.ProductId), cancellationToken);
+
+            await CalculateDiscountsAsync(cartResult.Value, cancellationToken);
+
+            return cartResult.Value.ToDTO(products.ToResponseDTO());
         }
         catch
         {
@@ -198,7 +217,11 @@ public class CartService : ICartService
             _logger.LogInformation("Applied '{DiscountType}' discount to user with ID '{UserId}'. Discount amount: {DiscountAmount}",
             ((DiscountType)discount.DiscountType).GetDescription(), userId, discountResult.Value);
 
-            return cartResult.Value.ToDTO();
+            var products = await _productRepository.GetByIdsAsync(cartResult.Value.Items.Select(i => i.ProductId), cancellationToken);
+
+            // Calculate discounts not necessary here as we already calculate them above
+
+            return cartResult.Value.ToDTO(products.ToResponseDTO());
         }
         catch
         {
@@ -244,7 +267,11 @@ public class CartService : ICartService
 
             await _unitOfWork.CommitAsync(cancellationToken);
 
-            return cartResult.Value.ToDTO();
+            var products = await _productRepository.GetByIdsAsync(cartResult.Value.Items.Select(i => i.ProductId), cancellationToken);
+
+            await CalculateDiscountsAsync(cartResult.Value, cancellationToken);
+
+            return cartResult.Value.ToDTO(products.ToResponseDTO());
         }
         catch
         {
@@ -256,68 +283,97 @@ public class CartService : ICartService
     public async Task<Result<CartResponseDTO>> UpdateItemQuantityAsync(string userId, Guid productId, int quantity,
     CancellationToken cancellationToken = default)
     {
-        if (!await UserExistsAsync(userId, cancellationToken))
+        try
         {
-            return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
+            if (!await UserExistsAsync(userId, cancellationToken))
+            {
+                return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
+            }
+
+            var cart = await _cartRepository.GetCartAsync(userId);
+
+            if (cart is null)
+            {
+                return CartErrorFactory.CartNotFound(userId);
+            }
+
+            var cartResult = Cart.From(
+                cart.Id, userId, cart.CreatedAt, cart.UpdatedAt, cart.Items.ToDomain(),
+                cart.Discounts.ToDomain());
+
+            if (cartResult.IsFailure)
+            {
+                return Result.Fail(cartResult.Errors);
+            }
+
+            var item = cartResult.Value.Items.FirstOrDefault(i => i.ProductId == productId);
+
+            if (item is null)
+            {
+                return ProductErrorFactory.ProductNotFoundById(productId);
+            }
+
+            item.UpdateQuantity(quantity);
+
+            await _cartRepository.UpdateItemQuantityAsync(cartResult.Value.Id, productId, item, cancellationToken);
+
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            var products = await _productRepository.GetByIdsAsync(cartResult.Value.Items.Select(i => i.ProductId), cancellationToken);
+
+            await CalculateDiscountsAsync(cartResult.Value, cancellationToken);
+
+            return cartResult.Value.ToDTO(products.ToResponseDTO());
         }
-
-        var cart = await _cartRepository.GetCartAsync(userId);
-
-        if (cart is null)
+        catch
         {
-            return CartErrorFactory.CartNotFound(userId);
+            await _unitOfWork.RollbackAsync(cancellationToken);
+            throw;
         }
-
-        var cartResult = Cart.From(
-            cart.Id, userId, cart.CreatedAt, cart.UpdatedAt, cart.Items.ToDomain(),
-            cart.Discounts.ToDomain());
-
-        if (cartResult.IsFailure)
-        {
-            return Result.Fail(cartResult.Errors);
-        }
-
-        var item = cartResult.Value.Items.FirstOrDefault(i => i.ProductId == productId);
-
-        if (item is null)
-        {
-            return ProductErrorFactory.ProductNotFoundById(productId);
-        }
-
-        item.UpdateQuantity(quantity);
-
-        await _cartRepository.UpdateItemQuantityAsync(cartResult.Value.Id, productId, item, cancellationToken);
-
-        return cartResult.Value.ToDTO();
     }
 
     public async Task<Result<CartResponseDTO>> ClearCartAsync(string userId, CancellationToken cancellationToken = default)
     {
-        if (!await UserExistsAsync(userId, cancellationToken))
+        try
         {
-            return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
+            if (!await UserExistsAsync(userId, cancellationToken))
+            {
+                return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
+            }
+
+            var cart = await _cartRepository.GetCartAsync(userId);
+
+            if (cart is null)
+            {
+                return CartErrorFactory.CartNotFound(userId);
+            }
+
+            var cartResult = Cart.From(
+                cart.Id, userId, cart.CreatedAt, cart.UpdatedAt, cart.Items.ToDomain(),
+                cart.Discounts.ToDomain());
+
+            if (cartResult.IsFailure)
+            {
+                return Result.Fail(cartResult.Errors);
+            }
+
+            cartResult.Value.Clear();
+            await _cartRepository.ClearCartAsync(cartResult.Value.Id, cancellationToken);
+
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            var products = await _productRepository.GetByIdsAsync(cartResult.Value.Items.Select(i => i.ProductId), cancellationToken);
+
+            // No need to calculate discounts for an empty cart, but we'll call it anyway to be consistent
+            await CalculateDiscountsAsync(cartResult.Value, cancellationToken);
+
+            return cartResult.Value.ToDTO(products.ToResponseDTO());
         }
-
-        var cart = await _cartRepository.GetCartAsync(userId);
-
-        if (cart is null)
+        catch
         {
-            return CartErrorFactory.CartNotFound(userId);
+            await _unitOfWork.RollbackAsync(cancellationToken);
+            throw;
         }
-
-        var cartResult = Cart.From(
-            cart.Id, userId, cart.CreatedAt, cart.UpdatedAt, cart.Items.ToDomain(),
-            cart.Discounts.ToDomain());
-
-        if (cartResult.IsFailure)
-        {
-            return Result.Fail(cartResult.Errors);
-        }
-
-        cartResult.Value.Clear();
-        await _cartRepository.ClearCartAsync(cartResult.Value.Id, cancellationToken);
-
-        return cartResult.Value.ToDTO();
     }
 
     private async Task<bool> UserExistsAsync(string userId, CancellationToken cancellationToken = default)
@@ -335,5 +391,38 @@ public class CartService : ICartService
         }
 
         return true;
+    }
+
+    private async Task CalculateDiscountsAsync(Cart cart, CancellationToken cancellationToken = default)
+    {
+        if (cart.Items.Count == 0 || cart.Discounts.Count == 0)
+        {
+            cart.UpdateTotalWithDiscount(0);
+            return;
+        }
+
+        var discountIds = cart.Discounts.Select(d => d.DiscountId).ToHashSet();
+        decimal totalDiscount = 0;
+
+        foreach (var discountId in discountIds)
+        {
+            var discount = await _discountRepository.GetDiscountByIdAsync(discountId, cancellationToken);
+
+            if (discount != null)
+            {
+                var strategy = _discountServiceFactory.GetDiscountService(discount.DiscountType);
+                var discountResult = await strategy.CalculateTotalDiscountAsync(
+                    cart.TotalAmount.Amount,
+                    new HashSet<Guid> { discountId },
+                    cancellationToken);
+
+                if (!discountResult.IsFailure)
+                {
+                    totalDiscount += discountResult.Value;
+                }
+            }
+        }
+
+        cart.UpdateTotalWithDiscount(totalDiscount);
     }
 }

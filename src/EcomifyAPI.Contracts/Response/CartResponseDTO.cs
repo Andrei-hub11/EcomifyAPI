@@ -7,7 +7,7 @@ public sealed record CartResponseDTO(
     string UserId,
     IReadOnlyList<CartItemResponseDTO> Items,
     MoneyDTO TotalAmount,
-    MoneyDTO TotalWithDiscount,
+    MoneyDTO? TotalWithDiscount,
     DateTime CreatedAt,
     DateTime? UpdatedAt
 );

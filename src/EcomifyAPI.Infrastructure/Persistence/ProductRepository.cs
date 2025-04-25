@@ -125,6 +125,55 @@ public class ProductRepository : IProductRepository
         return products.FirstOrDefault();
     }
 
+    public async Task<IEnumerable<ProductMapping>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        const string query = @"
+        SELECT 
+            p.id,  
+            p.name,
+            p.description,
+            p.price,
+            p.currency_code AS currencyCode, 
+            p.image_url AS imageUrl,
+            p.status,
+            p.stock,
+            c.id AS categoryId,
+            c.name AS categoryName,
+            c.description AS categoryDescription,
+            pc.category_id AS productCategoryId,
+            pc.product_id AS productId
+        FROM products p
+        LEFT JOIN product_categories pc ON p.id = pc.product_id
+        LEFT JOIN categories c ON pc.category_id = c.id
+        WHERE p.id = ANY(@Ids)";
+
+        var productDictionary = new Dictionary<Guid, ProductMapping>();
+
+        var products = await Connection.QueryAsync<ProductMapping, CategoryMapping, ProductMapping>(
+            new CommandDefinition(query, new { Ids = ids.ToArray() }, cancellationToken: cancellationToken, transaction: Transaction),
+            (product, category) =>
+            {
+                if (!productDictionary.TryGetValue(product.Id, out var existingProduct))
+                {
+                    existingProduct = product;
+                    existingProduct.ProductCategories = [];
+                    existingProduct.Categories = [];
+                    productDictionary[existingProduct.Id] = existingProduct;
+                }
+
+                if (category is not null && !existingProduct.Categories.Any(c => c.CategoryId == category.CategoryId))
+                {
+                    existingProduct.Categories.Add(category);
+                }
+
+                return existingProduct;
+            },
+            splitOn: "categoryId"
+        );
+
+        return [.. productDictionary.Values];
+    }
+
     public async Task<FilteredResponseMapping<ProductMapping>> GetLowStockProductsAsync(ProductFilterRequestDTO request, CancellationToken cancellationToken = default)
     {
         string query = @"

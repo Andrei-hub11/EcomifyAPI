@@ -1,0 +1,55 @@
+@using EcomifyAPI.Contracts.EmailModels
+@model PaymentCancellationEmail;
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Order Cancellation Confirmation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #e74c3c;
+        }
+        .details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .footer {
+            font-size: 12px;
+            color: #777;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Your Order Has Been Cancelled</h1>
+    <p>Hello @Model.CustomerName,</p>
+    <p>We're confirming that your order has been cancelled successfully.</p>
+    
+    <div class="details">
+        <p><strong>Order Number:</strong> @Model.OrderNumber</p>
+        <p><strong>Amount:</strong> @Model.Currency @Model.OrderAmount.ToString("N2")</p>
+        <p><strong>Reason for Cancellation:</strong> @Model.CancellationReason</p>
+    </div>
+    
+    <p>Your payment has been cancelled and no charges will be applied.</p>
+    <p>If you have any questions or need further assistance, please contact our customer support team.</p>
+    
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>&copy; @DateTime.Now.Year Ecomify. All rights reserved.</p>
+    </div>
+</body>
+</html> 

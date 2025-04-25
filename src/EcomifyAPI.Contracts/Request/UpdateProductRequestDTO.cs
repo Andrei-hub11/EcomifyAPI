@@ -10,4 +10,4 @@ string CurrencyCode,
 int Stock,
 string ImageUrl,
 ProductStatusDTO Status,
-IReadOnlyList<UpdateProductCategoryRequestDTO> Categories);
+UpdateProductCategoryRequestDTO Categories);

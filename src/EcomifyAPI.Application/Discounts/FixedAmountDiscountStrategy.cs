@@ -111,7 +111,7 @@ internal class FixedAmountDiscountStrategy : IDiscountStrategyResolver
                 discountValue = cartAmount - totalDiscount;
             }
 
-            totalDiscount += discountValue;
+            totalDiscount += discountValue ?? 0;
 
             if (totalDiscount >= cartAmount)
             {

@@ -11,7 +11,7 @@ public sealed class Cart
     public Guid Id { get; private set; }
     public string UserId { get; private set; } = string.Empty;
     public Money TotalAmount => CalculateTotalAmount();
-    public Money TotalWithDiscount { get; private set; }
+    public Money TotalWithDiscount { get; private set; } = Money.Zero("BRL");
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
     public IReadOnlyList<CartItem> Items => _items.AsReadOnly();
@@ -149,7 +149,7 @@ public sealed class Cart
             finalAmount = 0;
         }
 
-        TotalWithDiscount = new Money("BRL", finalAmount);
+        TotalWithDiscount = finalAmount > 0 ? new Money("BRL", finalAmount) : Money.Zero("BRL");
     }
 
     public void AddItem(Product product, int quantity, Money unitPrice)
@@ -159,6 +159,7 @@ public sealed class Cart
         if (item != null)
         {
             item.UpdateQuantity(item.Quantity + quantity);
+            return;
         }
 
         _items.Add(new CartItem(product.Id, quantity, unitPrice));

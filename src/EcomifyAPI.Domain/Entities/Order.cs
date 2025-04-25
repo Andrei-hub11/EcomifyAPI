@@ -73,7 +73,6 @@ public sealed class Order
     public static Result<Order> Create(
         string userId,
         DateTime orderDate,
-        OrderStatusEnum status,
         DateTime createdAt,
         DateTime? completedAt,
         Address shippingAddress,
@@ -82,6 +81,7 @@ public sealed class Order
         decimal discountAmount = 0
         )
     {
+        var status = OrderStatusEnum.Confirmed;
         var errors = ValidateOrder(userId, orderDate, status, id);
 
         if (errors.Count != 0)
@@ -91,8 +91,10 @@ public sealed class Order
 
         return new Order(
         id ?? Guid.Empty,
-        userId, orderDate,
-        status, createdAt,
+        userId,
+        orderDate,
+        status,
+        createdAt,
         completedAt,
         shippingAddress,
         billingAddress,
@@ -158,9 +160,9 @@ public sealed class Order
             errors.Add(ValidationError.Create("OrderDate is required", "ERR_ORDER_DATE_REQUIRED", "OrderDate"));
         }
 
-        if (status == OrderStatusEnum.Pending)
+        if (id is null && status != OrderStatusEnum.Confirmed)
         {
-            errors.Add(ValidationError.Create("Status must be pending", "ERR_STATUS_MUST_BE_PENDING", "Status"));
+            errors.Add(ValidationError.Create("Status must be confirmed", "ERR_STATUS_MUST_BE_CONFIRMED", "Status"));
         }
 
         return errors.AsReadOnly();
@@ -195,7 +197,7 @@ public sealed class Order
 
     public void AddItem(Product product, int quantity, Money unitPrice)
     {
-        if (Status != OrderStatusEnum.Created && Status != OrderStatusEnum.Confirmed)
+        if (Status != OrderStatusEnum.Confirmed)
         {
             throw new InvalidOperationException("Order is already being processed");
         }
@@ -228,7 +230,7 @@ public sealed class Order
 
     public void RemoveItem(Guid productId)
     {
-        if (Status != OrderStatusEnum.Created && Status != OrderStatusEnum.Confirmed)
+        if (Status != OrderStatusEnum.Confirmed)
         {
             throw new InvalidOperationException("Order is already being processed");
         }
@@ -253,41 +255,6 @@ public sealed class Order
         TotalWithDiscount = finalAmount > 0
             ? new Money(TotalAmount.Code, finalAmount)
             : Money.Zero(TotalAmount.Code);
-    }
-
-    public void ProcessPayment()
-    {
-        if (Status != OrderStatusEnum.Created)
-        {
-            throw new InvalidOperationException("Order is alredy being processed");
-        }
-
-        if (_items.Count == 0)
-        {
-            throw new InvalidOperationException("Empty order cannot be processed");
-        }
-
-        UpdateStatus(OrderStatusEnum.Processing);
-    }
-
-    public void ConfirmPayment()
-    {
-        if (Status != OrderStatusEnum.Processing)
-        {
-            throw new InvalidOperationException("Processing order cannot be confirmed");
-        }
-
-        UpdateStatus(OrderStatusEnum.Confirmed);
-    }
-
-    public void FailPayment()
-    {
-        if (Status != OrderStatusEnum.Processing)
-        {
-            throw new InvalidOperationException("Processing order cannot be failed");
-        }
-
-        UpdateStatus(OrderStatusEnum.Cancelled);
     }
 
     public void ShipOrder()

@@ -1,7 +1,10 @@
+using EcomifyAPI.Common.Utils;
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Domain.Common;
 using EcomifyAPI.Domain.Enums;
 using EcomifyAPI.Domain.ValueObjects;
+
+namespace EcomifyAPI.Domain.Entities;
 
 public sealed class PaymentRecord
 {
@@ -21,6 +24,7 @@ public sealed class PaymentRecord
     public IReadOnlyCollection<PaymentStatusChange> StatusHistory => _statusHistory.AsReadOnly();
 
     private PaymentRecord(
+        Guid paymentId,
         Guid orderId,
         Money amount,
         PaymentMethodEnum paymentMethod,
@@ -28,7 +32,7 @@ public sealed class PaymentRecord
         string gatewayResponse,
         IPaymentMethodDetails paymentMethodDetails)
     {
-        PaymentId = Guid.NewGuid();
+        PaymentId = paymentId;
         OrderId = orderId;
         Amount = amount;
         PaymentMethod = paymentMethod;
@@ -38,10 +42,13 @@ public sealed class PaymentRecord
         GatewayResponse = gatewayResponse;
         _paymentMethodDetails = paymentMethodDetails;
 
-        _statusHistory.Add(new PaymentStatusChange(Guid.NewGuid(), PaymentStatusEnum.Processing, DateTime.UtcNow, null));
+        if (paymentId == Guid.Empty)
+        {
+            _statusHistory.Add(new PaymentStatusChange(Guid.NewGuid(), PaymentStatusEnum.Processing, DateTime.UtcNow,
+            OrderIdGenerator.GenerateOrderId()));
+        }
     }
 
-    // Factory methods
     public static PaymentRecord CreateCreditCardPayment(
         Guid orderId,
         Money amount,
@@ -51,7 +58,7 @@ public sealed class PaymentRecord
         string gatewayResponse)
     {
         var details = new CreditCardDetails(lastFourDigits, cardBrand);
-        return new PaymentRecord(orderId, amount, PaymentMethodEnum.CreditCard, transactionId, gatewayResponse, details);
+        return new PaymentRecord(Guid.Empty, orderId, amount, PaymentMethodEnum.CreditCard, transactionId, gatewayResponse, details);
     }
 
     public static PaymentRecord CreatePayPalPayment(
@@ -63,7 +70,19 @@ public sealed class PaymentRecord
         string gatewayResponse)
     {
         var details = new PayPalDetails(paypalEmail, paypalPayerId);
-        return new PaymentRecord(orderId, amount, PaymentMethodEnum.PayPal, transactionId, gatewayResponse, details);
+        return new PaymentRecord(Guid.Empty, orderId, amount, PaymentMethodEnum.PayPal, transactionId, gatewayResponse, details);
+    }
+
+    public static PaymentRecord From(
+        Guid paymentId,
+        Guid orderId,
+        Money amount,
+        PaymentMethodEnum paymentMethod,
+        Guid transactionId,
+        string gatewayResponse,
+        IPaymentMethodDetails paymentMethodDetails)
+    {
+        return new PaymentRecord(paymentId, orderId, amount, paymentMethod, transactionId, gatewayResponse, paymentMethodDetails);
     }
 
     public CreditCardDetails? GetCreditCardDetails()
@@ -135,6 +154,28 @@ public sealed class PaymentRecord
         return true;
     }
 
+    public Result<bool> MarkAsCancelled(string reason)
+    {
+        if (Status == PaymentStatusEnum.Refunded || Status == PaymentStatusEnum.Cancelled)
+            return Result.Fail("Payment has already been finalized and cannot be cancelled");
+
+        Status = PaymentStatusEnum.Cancelled;
+        _statusHistory.Add(new PaymentStatusChange(Guid.NewGuid(), PaymentStatusEnum.Cancelled, DateTime.UtcNow, reason));
+
+        return true;
+    }
+
+    public Result<bool> MarkAsRefunded(string reason)
+    {
+        if (Status == PaymentStatusEnum.Refunded || Status == PaymentStatusEnum.Cancelled)
+            return Result.Fail("Payment has already been finalized and cannot be refunded");
+
+        Status = PaymentStatusEnum.Refunded;
+        _statusHistory.Add(new PaymentStatusChange(Guid.NewGuid(), PaymentStatusEnum.Refunded, DateTime.UtcNow, reason));
+
+        return true;
+    }
+
     public Result<bool> UpdateFromGateway(string gatewayStatus, string gatewayReference)
     {
         PaymentStatusEnum newStatus = MapGatewayStatusToPaymentStatus(gatewayStatus);
@@ -167,6 +208,7 @@ public sealed class PaymentRecord
             "pending" => PaymentStatusEnum.Processing,
             "failed" => PaymentStatusEnum.Failed,
             "refunded" => PaymentStatusEnum.Refunded,
+            "cancelled" => PaymentStatusEnum.Cancelled,
             _ => PaymentStatusEnum.Unknown
         };
     }
@@ -179,6 +221,7 @@ public sealed class PaymentRecord
             "pending" => PaymentStatusEnum.Processing,
             "declined" => PaymentStatusEnum.Failed,
             "refunded" => PaymentStatusEnum.Refunded,
+            "cancelled" => PaymentStatusEnum.Cancelled,
             _ => PaymentStatusEnum.Unknown
         };
     }
