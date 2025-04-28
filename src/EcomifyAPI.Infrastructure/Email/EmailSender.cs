@@ -93,4 +93,20 @@ internal class EmailSender : IEmailSender
             .UsingTemplateFromFile(templatePath, model)
             .SendAsync();
     }
+
+    public async Task SendOrderConfirmationEmail(string toAddress, OrderConfirmationEmail orderDetails)
+    {
+        string templatePath = Path.Combine(_srcDirectory, "EcomifyAPI.Infrastructure", "Email", "Templates", "OrderConfirmation.cshtml");
+
+        if (!File.Exists(templatePath))
+        {
+            throw new FileNotFoundException($"Template file not found at: {templatePath}");
+        }
+
+        await _fluentEmail
+            .To(toAddress)
+            .Subject("Your Order Confirmation")
+            .UsingTemplateFromFile(templatePath, orderDetails)
+            .SendAsync();
+    }
 }

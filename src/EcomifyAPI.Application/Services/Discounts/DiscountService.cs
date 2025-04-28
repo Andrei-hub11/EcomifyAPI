@@ -161,16 +161,19 @@ public sealed class DiscountService : IDiscountService
 
             var categories = new HashSet<CategoryResponseDTO>();
 
-            foreach (var categoryId in request.Categories)
+            if (request.Categories.Count != 0 && request.AutoApply)
             {
-                var category = await _productService.GetCategoryByIdAsync(categoryId, cancellationToken);
-
-                if (category.IsFailure)
+                foreach (var categoryId in request.Categories)
                 {
-                    return Result.Fail(category.Errors);
-                }
+                    var category = await _productService.GetCategoryByIdAsync(categoryId, cancellationToken);
 
-                categories.Add(category.Value);
+                    if (category.IsFailure)
+                    {
+                        return Result.Fail(category.Errors);
+                    }
+
+                    categories.Add(category.Value);
+                }
             }
 
             return Result.Ok(newDiscount.Value!.ToResponseDTO(categories));
@@ -198,6 +201,110 @@ public sealed class DiscountService : IDiscountService
         }
     }
 
+    public async Task<Result<bool>> DeactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var existingDiscount = await _discountRepository.GetDiscountByIdAsync(id, cancellationToken);
+
+            if (existingDiscount is null)
+            {
+                return DiscountErrorFactory.DiscountNotFoundById(id);
+            }
+
+            var discount = Discount.From(
+                existingDiscount.Id,
+                existingDiscount.Code,
+                (DiscountType)existingDiscount.DiscountType,
+                existingDiscount.FixedAmount,
+                existingDiscount.Percentage,
+                existingDiscount.MaxUses,
+                existingDiscount.Uses,
+                existingDiscount.MinOrderAmount,
+                existingDiscount.MaxUsesPerUser,
+                existingDiscount.ValidFrom,
+                existingDiscount.ValidTo,
+                existingDiscount.IsActive,
+                existingDiscount.AutoApply,
+                existingDiscount.CreatedAt
+            );
+
+            if (discount.IsFailure)
+            {
+                return Result.Fail(discount.Errors);
+            }
+
+            discount.Value.Deactivate();
+
+            await _discountRepository.UpdateDiscountAsync(discount.Value, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return true;
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<Result<bool>> IncrementUsageAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var existingDiscount = await _discountRepository.GetDiscountByIdAsync(id, cancellationToken);
+
+            if (existingDiscount is null)
+            {
+                return DiscountErrorFactory.DiscountNotFoundById(id);
+            }
+
+            var discount = Discount.From(
+                existingDiscount.Id,
+                existingDiscount.Code,
+                (DiscountType)existingDiscount.DiscountType,
+                existingDiscount.FixedAmount,
+                existingDiscount.Percentage,
+                existingDiscount.MaxUses,
+                existingDiscount.Uses,
+                existingDiscount.MinOrderAmount,
+                existingDiscount.MaxUsesPerUser,
+                existingDiscount.ValidFrom,
+                existingDiscount.ValidTo,
+                existingDiscount.IsActive,
+                existingDiscount.AutoApply,
+                existingDiscount.CreatedAt
+            );
+
+            if (discount.IsFailure)
+            {
+                return Result.Fail(discount.Errors);
+            }
+
+            if (discount.Value.Uses >= discount.Value.MaxUses)
+            {
+                return Result.Fail(DiscountErrorFactory.DiscountMaxUsageReached(discount.Value.MaxUses));
+            }
+
+            discount.Value.IncrementUsage();
+
+            if (discount.Value.Uses >= discount.Value.MaxUses)
+            {
+                await DeactivateAsync(id, cancellationToken);
+            }
+
+            await _discountRepository.UpdateDiscountAsync(discount.Value, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return true;
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync();
+            throw;
+        }
+    }
+
     public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         try
@@ -207,6 +314,11 @@ public sealed class DiscountService : IDiscountService
             if (discount is null)
             {
                 return DiscountErrorFactory.DiscountNotFoundById(id);
+            }
+
+            if (discount.Uses > 0)
+            {
+                return Result.Fail(DiscountErrorFactory.DiscountHasHistory(discount.Id));
             }
 
             await _discountRepository.DeleteDiscountAsync(id, cancellationToken);

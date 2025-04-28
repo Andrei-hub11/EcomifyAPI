@@ -38,7 +38,6 @@ public static class MappingExtensionsPayment
             PaymentStatusEnum.Failed => PaymentStatusDTO.Failed,
             PaymentStatusEnum.RefundRequested => PaymentStatusDTO.RefundRequested,
             PaymentStatusEnum.Refunded => PaymentStatusDTO.Refunded,
-            PaymentStatusEnum.Unknown => PaymentStatusDTO.Unknown,
             PaymentStatusEnum.Cancelled => PaymentStatusDTO.Cancelled,
             _ => throw new ArgumentException("Invalid payment status")
         };
@@ -53,10 +52,20 @@ public static class MappingExtensionsPayment
             PaymentStatusDTO.Failed => PaymentStatusEnum.Failed,
             PaymentStatusDTO.RefundRequested => PaymentStatusEnum.RefundRequested,
             PaymentStatusDTO.Refunded => PaymentStatusEnum.Refunded,
-            PaymentStatusDTO.Unknown => PaymentStatusEnum.Unknown,
             PaymentStatusDTO.Cancelled => PaymentStatusEnum.Cancelled,
             _ => throw new ArgumentException("Invalid payment status")
         };
+    }
+
+    public static PaginatedResponseDTO<PaymentResponseDTO> ToPaginatedDTO(this FilteredResponseMapping<PaymentRecordMapping> payments,
+    int pageNumber, int pageSize)
+    {
+        return new PaginatedResponseDTO<PaymentResponseDTO>(
+            [.. payments.Items.Select(p => p.ToDTO())],
+            pageSize,
+            pageNumber,
+            payments.TotalCount
+        );
     }
 
     public static PaymentStatusHistoryResponseDTO ToDTO(this PaymentRecordHistoryMapping paymentStatusHistory)

@@ -160,7 +160,7 @@ public sealed class ProductService : IProductService
         }
         catch (Exception)
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -187,7 +187,7 @@ public sealed class ProductService : IProductService
         }
         catch (Exception)
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -255,7 +255,7 @@ public sealed class ProductService : IProductService
         }
         catch (Exception)
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -279,7 +279,7 @@ public sealed class ProductService : IProductService
         }
         catch (Exception)
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }

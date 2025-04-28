@@ -170,8 +170,8 @@ public class UserRepository : IUserRepository
     public async Task<UserAddressMapping?> GetUserAddressByFieldsAsync(string userId, string street, int number, string city,
     string state, string zipCode, string country, string complement, CancellationToken cancellationToken)
     {
-
-        const string query = @"SELECT * FROM user_addresses WHERE user_keycloak_id = @UserId 
+        const string query = @"SELECT id, street, number, city, state, zip_code AS ZipCode, country, 
+        complement FROM user_addresses WHERE user_keycloak_id = @UserId 
         AND street = @Street AND number = @Number AND city = @City AND state = @State AND zip_code = @ZipCode 
         AND country = @Country AND complement = @Complement";
 
@@ -279,6 +279,57 @@ public class UserRepository : IUserRepository
         ));
 
         return result;
+    }
+
+    public async Task UpdateUserAddress(Guid addressId, Address address, string userKeycloakId, CancellationToken cancellationToken)
+    {
+        const string query = @"UPDATE user_addresses 
+                             SET street = @Street, 
+                                 number = @Number, 
+                                 city = @City, 
+                                 state = @State, 
+                                 zip_code = @ZipCode, 
+                                 country = @Country, 
+                                 complement = @Complement
+                             WHERE id = @AddressId AND user_keycloak_id = @UserKeycloakId";
+
+        await Connection.ExecuteAsync(new CommandDefinition(
+            query,
+            new
+            {
+                AddressId = addressId,
+                UserKeycloakId = userKeycloakId,
+                address.Street,
+                address.Number,
+                address.City,
+                address.State,
+                address.ZipCode,
+                address.Country,
+                address.Complement
+            },
+            cancellationToken: cancellationToken,
+            transaction: Transaction
+        ));
+    }
+
+    public async Task<UserAddressMapping?> GetUserAddressByIdAsync(Guid addressId, string userKeycloakId, CancellationToken cancellationToken)
+    {
+        const string query = @"SELECT id AS Id, street, number, city, 
+                              state AS State, zip_code AS ZipCode, country, 
+                              complement AS Complement
+                              FROM user_addresses 
+                              WHERE id = @AddressId AND user_keycloak_id = @UserKeycloakId";
+
+        var result = await Connection.QueryAsync<UserAddressMapping>(
+            new CommandDefinition(
+                query,
+                new { AddressId = addressId, UserKeycloakId = userKeycloakId },
+                cancellationToken: cancellationToken,
+                transaction: Transaction
+            )
+        );
+
+        return result.FirstOrDefault();
     }
 
     public async Task UpdateApplicationUser(User user, CancellationToken cancellationToken)

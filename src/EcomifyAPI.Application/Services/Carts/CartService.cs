@@ -83,7 +83,7 @@ public class CartService : ICartService
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -161,7 +161,7 @@ public class CartService : ICartService
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -225,7 +225,7 @@ public class CartService : ICartService
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -275,7 +275,7 @@ public class CartService : ICartService
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -327,7 +327,7 @@ public class CartService : ICartService
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -371,7 +371,7 @@ public class CartService : ICartService
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }

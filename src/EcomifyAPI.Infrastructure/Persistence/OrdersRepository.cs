@@ -61,6 +61,7 @@ public class OrderRepository : IOrderRepository
                         'ItemId', i.id,
                         'OrderId', i.order_id,
                         'ProductId', i.product_id,
+                        'ProductName', p.name,
                         'Quantity', i.quantity,
                         'UnitPrice', i.unit_price,
                         'CurrencyCode', i.currency_code,
@@ -71,6 +72,7 @@ public class OrderRepository : IOrderRepository
             ) AS ItemsJson
         FROM orders o
         LEFT JOIN order_items i ON o.id = i.order_id
+        LEFT JOIN products p ON i.product_id = p.id
         GROUP BY 
             o.id,
             o.user_keycloak_id,
@@ -162,6 +164,7 @@ public class OrderRepository : IOrderRepository
                         'ItemId', i.id,
                         'OrderId', i.order_id,
                         'ProductId', i.product_id,
+                        'ProductName', p.name,
                         'Quantity', i.quantity,
                         'UnitPrice', i.unit_price,
                         'CurrencyCode', i.currency_code,
@@ -172,6 +175,7 @@ public class OrderRepository : IOrderRepository
             ) AS ItemsJson
         FROM orders o
         LEFT JOIN order_items i ON o.id = i.order_id
+        LEFT JOIN products p ON i.product_id = p.id
         WHERE o.id = @Id
         GROUP BY 
             o.id,
@@ -209,6 +213,7 @@ public class OrderRepository : IOrderRepository
             order.ShippingAddress = new ShippingAddressMapping
             {
                 ShippingStreet = order.ShippingStreet,
+                ShippingNumber = order.ShippingNumber,
                 ShippingCity = order.ShippingCity,
                 ShippingState = order.ShippingState,
                 ShippingZipCode = order.ShippingZipCode,
@@ -219,6 +224,7 @@ public class OrderRepository : IOrderRepository
             order.BillingAddress = new BillingAddressMapping
             {
                 BillingStreet = order.BillingStreet,
+                BillingNumber = order.BillingNumber,
                 BillingCity = order.BillingCity,
                 BillingState = order.BillingState,
                 BillingZipCode = order.BillingZipCode,
@@ -312,39 +318,8 @@ public class OrderRepository : IOrderRepository
     {
         const string query = @"
         UPDATE orders
-        SET total_amount = @TotalAmount,
-            discount_amount = @DiscountAmount,
-            total_with_discount = @TotalWithDiscount,
-            currency_code = @CurrencyCode,
-            order_date = @OrderDate,
-            status = @Status,
-            created_at = @CreatedAt,
-            completed_at = @CompletedAt,
-            shipping_street = @ShippingStreet,
-            shipping_number = @ShippingNumber,
-            shipping_city = @ShippingCity,
-            shipping_state = @ShippingState,
-            shipping_zip_code = @ShippingZipCode,
-            shipping_country = @ShippingCountry,
-            shipping_complement = @ShippingComplement,
-            billing_street = @BillingStreet,
-            billing_number = @BillingNumber,
-            billing_city = @BillingCity,
-            billing_state = @BillingState,
-            billing_zip_code = @BillingZipCode,
-            billing_country = @BillingCountry,
-            billing_complement = @BillingComplement
+        SET status = @Status
         WHERE id = @Id";
-
-        const string orderItemsQuery = @"
-            UPDATE order_items
-            SET product_id = @ProductId,
-                quantity = @Quantity,
-                unit_price = @UnitPrice,
-                total_price = @TotalPrice,
-                currency_code = @CurrencyCode
-            WHERE order_id = @OrderId
-            ";
 
         await Connection.ExecuteAsync(
             new CommandDefinition(
@@ -352,53 +327,12 @@ public class OrderRepository : IOrderRepository
                 new
                 {
                     order.Id,
-                    TotalAmount = order.TotalAmount.Amount,
-                    order.DiscountAmount,
-                    TotalWithDiscount = order.TotalWithDiscount.Amount,
-                    CurrencyCode = order.TotalAmount.Code,
-                    order.OrderDate,
                     order.Status,
-                    order.CreatedAt,
-                    order.CompletedAt,
-                    ShippingStreet = order.ShippingAddress.Street,
-                    ShippingNumber = order.ShippingAddress.Number,
-                    ShippingCity = order.ShippingAddress.City,
-                    ShippingState = order.ShippingAddress.State,
-                    ShippingZipCode = order.ShippingAddress.ZipCode,
-                    ShippingCountry = order.ShippingAddress.Country,
-                    ShippingComplement = order.ShippingAddress.Complement,
-                    BillingStreet = order.BillingAddress.Street,
-                    BillingNumber = order.BillingAddress.Number,
-                    BillingCity = order.BillingAddress.City,
-                    BillingState = order.BillingAddress.State,
-                    BillingZipCode = order.BillingAddress.ZipCode,
-                    BillingCountry = order.BillingAddress.Country,
-                    BillingComplement = order.BillingAddress.Complement,
                 },
                 cancellationToken: cancellationToken,
                 transaction: Transaction
             )
         );
-
-        foreach (var item in order.OrderItems)
-        {
-            await Connection.ExecuteAsync(
-                new CommandDefinition(
-                orderItemsQuery,
-                new
-                {
-                    OrderId = order.Id,
-                    item.ProductId,
-                    item.Quantity,
-                    item.UnitPrice,
-                    item.TotalPrice,
-                    item.TotalPrice.Code
-                },
-                    cancellationToken: cancellationToken,
-                    transaction: Transaction
-                    )
-            );
-        }
     }
 
     public async Task<bool> DeleteAsync(Guid orderId, CancellationToken cancellationToken = default)
@@ -448,6 +382,7 @@ public class OrderRepository : IOrderRepository
                         'ItemId', i.id,
                         'OrderId', i.order_id,
                         'ProductId', i.product_id,
+                        'ProductName', p.name,
                         'Quantity', i.quantity,
                         'UnitPrice', i.unit_price,
                         'CurrencyCode', i.currency_code,
@@ -458,6 +393,7 @@ public class OrderRepository : IOrderRepository
             ) AS ItemsJson
         FROM orders o
         LEFT JOIN order_items i ON o.id = i.order_id
+        LEFT JOIN products p ON i.product_id = p.id
         WHERE o.user_keycloak_id = @UserId
         GROUP BY 
             o.id,

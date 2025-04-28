@@ -46,6 +46,16 @@ public sealed class UserErrorFactory
     }
 
     /// <summary>
+    /// Creates a not found error for an address by ID.
+    /// </summary>
+    /// <param name="id">The address identifier.</param>
+    /// <returns>An <see cref="Error"/> instance representing an address not found error.</returns>
+    public static Error AddressNotFoundById(Guid id)
+    {
+        return Error.NotFound($"Address with ID = '{id}' was not found.", "ERR_ADDRESS_NOT_FOUND");
+    }
+
+    /// <summary>
     /// Creates a conflict error for an existing username without specifying the username.
     /// </summary>
     /// <returns>An <see cref="Error"/> instance representing a conflict error.</returns>

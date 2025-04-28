@@ -1,3 +1,4 @@
+using EcomifyAPI.Application.Contracts.Contexts;
 using EcomifyAPI.Application.Contracts.Data;
 using EcomifyAPI.Application.Contracts.Discounts;
 using EcomifyAPI.Application.Contracts.Repositories;
@@ -14,12 +15,14 @@ namespace EcomifyAPI.Application.Discounts;
 internal class CouponDiscountStrategy : IDiscountStrategyResolver
 {
     public DiscountTypeEnum DiscountType => DiscountTypeEnum.Coupon;
+    private readonly IUserContext _userContext;
     private readonly IUnitOfWork _unitOfWork;
 
     private readonly IDiscountRepository _discountRepository;
 
-    public CouponDiscountStrategy(IUnitOfWork unitOfWork)
+    public CouponDiscountStrategy(IUserContext userContext, IUnitOfWork unitOfWork)
     {
+        _userContext = userContext;
         _unitOfWork = unitOfWork;
         _discountRepository = _unitOfWork.GetRepository<IDiscountRepository>();
     }
@@ -90,6 +93,17 @@ internal class CouponDiscountStrategy : IDiscountStrategyResolver
             return Result.Ok(0m);
         }
 
+        var recentDiscounts = await _discountRepository.GetRecentDiscountsByCustomerIdAsync(
+            _userContext.UserId,
+            DateTime.UtcNow.AddDays(-7));
+
+        var count = recentDiscounts.Count();
+
+        if (count > 8)
+        {
+            return Result.Fail("Customer has received too many discounts recently");
+        }
+
         var totalDiscount = 0m;
 
         foreach (var discountId in discountIds.Distinct())
@@ -123,16 +137,16 @@ internal class CouponDiscountStrategy : IDiscountStrategyResolver
                 return Result.Fail(couponResult.Errors);
             }
 
-            var coupon = couponResult.Value;
+            var discount = couponResult.Value;
 
-            var userUsages = await _discountRepository.GetUserUsagesAsync(existingDiscount.Code, cancellationToken);
+            var userUsages = await _discountRepository.GetUserUsagesAsync(_userContext.UserId, cancellationToken);
 
-            if (!coupon.IsValidForUse(cartAmount, userUsages))
+            if (!discount.IsValidForUse(cartAmount, userUsages))
             {
                 return Result.Fail(DiscountErrorFactory.DiscountNotValidForUse(existingDiscount.Id));
             }
 
-            var discountValue = coupon.CalculateDiscount(cartAmount - totalDiscount);
+            var discountValue = discount.CalculateDiscount(cartAmount - totalDiscount);
 
             if (discountValue <= 0)
             {

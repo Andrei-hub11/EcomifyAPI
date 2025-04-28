@@ -92,10 +92,12 @@ public static class MappingExtensionsOrders
     {
         return [.. items.Select(item =>
         new OrderItemDTO(
-            item.OrderId,
+            item.ItemId,
             item.ProductId,
+            item.ProductName,
             item.Quantity,
-            new MoneyDTO(item.CurrencyCode, item.UnitPrice)))];
+            new MoneyDTO(item.CurrencyCode, item.UnitPrice),
+            item.TotalPrice))];
     }
 
     public static DiscountHistoryDTO ToDTO(this DiscountHistory discountHistory)
@@ -146,7 +148,13 @@ public static class MappingExtensionsOrders
             order.ShippingAddress.ToAddressRequestDTO(),
             order.BillingAddress.ToAddressRequestDTO(),
             [.. order.OrderItems.Select(item =>
-            new OrderItemDTO(item.Id, item.ProductId, item.Quantity, new MoneyDTO(item.UnitPrice.Code, item.UnitPrice.Amount)))],
+            new OrderItemDTO(
+                item.Id,
+                item.ProductId,
+                string.Empty, // ProductName not available in domain entity
+                item.Quantity,
+                new MoneyDTO(item.UnitPrice.Code, item.UnitPrice.Amount),
+                item.TotalPrice.Amount))],
             []
         );
     }

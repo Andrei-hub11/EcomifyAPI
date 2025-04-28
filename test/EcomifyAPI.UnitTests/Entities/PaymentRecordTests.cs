@@ -402,7 +402,6 @@ public class PaymentRecordTests
     [InlineData("failed", PaymentStatusEnum.Failed)]
     [InlineData("refunded", PaymentStatusEnum.Refunded)]
     [InlineData("cancelled", PaymentStatusEnum.Cancelled)]
-    [InlineData("unknown", PaymentStatusEnum.Unknown)]
     public void UpdateFromGateway_ShouldMapPayPalStatuses_Correctly(string paypalStatus, PaymentStatusEnum expectedStatus)
     {
         // Arrange
@@ -424,7 +423,6 @@ public class PaymentRecordTests
     [InlineData("declined", PaymentStatusEnum.Failed)]
     [InlineData("refunded", PaymentStatusEnum.Refunded)]
     [InlineData("cancelled", PaymentStatusEnum.Cancelled)]
-    [InlineData("unknown", PaymentStatusEnum.Unknown)]
     public void UpdateFromGateway_ShouldMapCreditCardStatuses_Correctly(string cardStatus, PaymentStatusEnum expectedStatus)
     {
         // Arrange

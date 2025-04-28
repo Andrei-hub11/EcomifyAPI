@@ -1,3 +1,4 @@
+using EcomifyAPI.Application.Contracts.Contexts;
 using EcomifyAPI.Application.Contracts.Data;
 using EcomifyAPI.Application.Contracts.Discounts;
 using EcomifyAPI.Application.Contracts.Repositories;
@@ -14,11 +15,13 @@ namespace EcomifyAPI.Application.Discounts;
 internal class FixedAmountDiscountStrategy : IDiscountStrategyResolver
 {
     public DiscountTypeEnum DiscountType => DiscountTypeEnum.Fixed;
+    private readonly IUserContext _userContext;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDiscountRepository _discountRepository;
 
-    public FixedAmountDiscountStrategy(IUnitOfWork unitOfWork)
+    public FixedAmountDiscountStrategy(IUserContext userContext, IUnitOfWork unitOfWork)
     {
+        _userContext = userContext;
         _unitOfWork = unitOfWork;
         _discountRepository = _unitOfWork.GetRepository<IDiscountRepository>();
     }
@@ -66,6 +69,16 @@ internal class FixedAmountDiscountStrategy : IDiscountStrategyResolver
             return Result.Ok(0m);
         }
 
+        var recentDiscounts = await _discountRepository.GetRecentDiscountsByCustomerIdAsync(
+            _userContext.UserId, DateTime.UtcNow.AddDays(-7));
+
+        var count = recentDiscounts.Count();
+
+        if (count > 8)
+        {
+            return Result.Fail("Customer has received too many discounts recently");
+        }
+
         var totalDiscount = 0m;
 
         foreach (var discountId in discountIds)
@@ -77,7 +90,7 @@ internal class FixedAmountDiscountStrategy : IDiscountStrategyResolver
                 return Result.Fail(DiscountErrorFactory.DiscountNotFoundById(discountId));
             }
 
-            var coupon = Discount.From(
+            var discount = Discount.From(
                 existingDiscount.Id,
                 existingDiscount.Code,
                 (DiscountType)existingDiscount.DiscountType,
@@ -94,14 +107,21 @@ internal class FixedAmountDiscountStrategy : IDiscountStrategyResolver
                 existingDiscount.CreatedAt
             );
 
-            if (coupon.IsFailure)
+            if (discount.IsFailure)
             {
-                return Result.Fail(coupon.Errors);
+                return Result.Fail(discount.Errors);
             }
 
             if (existingDiscount.MinOrderAmount > cartAmount)
             {
                 return Result.Fail(DiscountErrorFactory.MinimumOrderAmountNotReached(existingDiscount.MinOrderAmount));
+            }
+
+            var userUsages = await _discountRepository.GetUserUsagesAsync(_userContext.UserId, cancellationToken);
+
+            if (!discount.Value.IsValidForUse(cartAmount, userUsages))
+            {
+                return Result.Fail(DiscountErrorFactory.DiscountNotValidForUse(existingDiscount.Id));
             }
 
             var discountValue = existingDiscount.FixedAmount;

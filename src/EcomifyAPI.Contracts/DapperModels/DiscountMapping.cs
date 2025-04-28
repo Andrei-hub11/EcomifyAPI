@@ -6,7 +6,6 @@ public class DiscountMapping
 {
     public Guid Id { get; set; }
     public string? Code { get; set; }
-    public string CustomerId { get; set; } = string.Empty;
     public decimal? FixedAmount { get; set; }
     public decimal? Percentage { get; set; }
     public DiscountTypeEnum DiscountType { get; set; }

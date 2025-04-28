@@ -214,6 +214,8 @@ public sealed class OrderService : IOrderService
                 {
                     order.Value.ApplyDiscount(discountAmount);
 
+                    await _discountService.IncrementUsageAsync(discount.Id, cancellationToken);
+
                     // Create discount history record
                     var discountHistory = DiscountHistory.Create(
                         orderId,
@@ -265,12 +267,11 @@ public sealed class OrderService : IOrderService
 
             return Result.Ok(orderResponse.Value);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Error creating order");
-            await RestoreProductState(originalProductState, cancellationToken);
+            await RestoreProductState(originalProductState, CancellationToken.None);
 
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -327,7 +328,7 @@ public sealed class OrderService : IOrderService
         }
         catch (Exception)
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -378,7 +379,7 @@ public sealed class OrderService : IOrderService
         }
         catch (Exception)
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }

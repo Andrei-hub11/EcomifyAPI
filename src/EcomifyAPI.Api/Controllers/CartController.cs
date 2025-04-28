@@ -64,17 +64,18 @@ public class CartController : ControllerBase
     }
 
     /// <summary>
-    /// Apply a coupon to the cart of a user
+    /// Apply a discount to the cart of a user
     /// </summary>
     /// <param name="userId">The user's id</param>
-    /// <param name="request">The request containing the coupon code</param>
+    /// <param name="request">The request containing the discount code</param>
     /// <returns>A <see cref="CartResponseDTO"/> containing the updated cart</returns>
     /// <response code="200">Returns the updated cart</response>
     /// <response code="401">Returned when the user is not authenticated.</response>
-    /// <response code="404">The product was not found</response>
+    /// <response code="404">The discount was not found</response>
+    /// <response code="422">Validation errors</response>
     [Authorize]
-    [HttpPost("{userId}/coupons")]
-    public async Task<IActionResult> ApplyCoupon(string userId, [FromBody] ApplyDiscountRequestDTO request)
+    [HttpPost("{userId}/discount")]
+    public async Task<IActionResult> ApplyDiscount(string userId, [FromBody] ApplyDiscountRequestDTO request)
     {
         var result = await _cartService.ApplyDiscountAsync(userId, request);
 

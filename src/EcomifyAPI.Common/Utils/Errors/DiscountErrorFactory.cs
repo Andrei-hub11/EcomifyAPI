@@ -38,4 +38,21 @@ public static class DiscountErrorFactory
     /// <param name="minOrderAmount">The minimum order amount that was not reached.</param>
     /// <returns>An <see cref="Error"/> instance representing a minimum order amount not reached error.</returns>
     public static Error MinimumOrderAmountNotReached(decimal minOrderAmount) => Error.Failure($"The minimum order amount of {minOrderAmount} was not reached.", "ERR_MINIMUM_ORDER_AMOUNT_NOT_REACHED");
+
+    /// <summary>
+    /// Creates an error indicating that the maximum usage limit has been reached.
+    /// </summary>
+    /// <param name="maxUses">The maximum usage limit that has been reached.</param>
+    /// <returns>An <see cref="Error"/> instance representing a maximum usage limit reached error.</returns>
+    public static Error DiscountMaxUsageReached(int maxUses) =>
+     Error.Conflict($"Max usage of {maxUses} reached.", "ERR_MAX_USAGE_REACHED");
+
+    /// <summary>
+    /// Creates an error indicating that the discount has history.
+    /// </summary>
+    /// <param name="discountId">The ID of the discount that has history.</param>
+    /// <returns>An <see cref="Error"/> instance representing a discount has history error.</returns>
+    public static Error DiscountHasHistory(Guid discountId) =>
+     Error.Conflict($"Discount with id = '{discountId}' has history and cannot be deleted. We recommend deactivating it instead.",
+     "ERR_DISCOUNT_HAS_HISTORY");
 }

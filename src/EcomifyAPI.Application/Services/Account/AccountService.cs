@@ -97,14 +97,21 @@ public class AccountService : IAccountService
         CancellationToken cancellationToken
     )
     {
-        var user = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
-
-        if (user == null)
+        try
         {
-            return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
-        }
+            var user = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
 
-        return user.ToResponseDTO();
+            if (user == null)
+            {
+                return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
+            }
+
+            return user.ToResponseDTO();
+        }
+        catch (Exception)
+        {
+            throw;
+        }
     }
 
     public async Task<Result<AuthResponseDTO>> RegisterAsync(
@@ -198,7 +205,7 @@ public class AccountService : IAccountService
                 );
             }
 
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
 
             throw;
         }
@@ -397,7 +404,7 @@ public class AccountService : IAccountService
         }
         catch (Exception)
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync();
             throw;
         }
     }
@@ -585,7 +592,7 @@ public class AccountService : IAccountService
                 );
             }
 
-            _unitOfWork.Commit();
+            await _unitOfWork.CommitAsync();
 
             isRollback = false;
 
@@ -612,7 +619,7 @@ public class AccountService : IAccountService
                 );
             }
 
-            _unitOfWork.Rollback();
+            await _unitOfWork.RollbackAsync();
 
             throw;
         }
@@ -690,6 +697,87 @@ public class AccountService : IAccountService
         return user.UpdateProfile(
             newProfileImagePath: newProfileImage.ProfileImagePath
         );
+    }
+
+    public async Task<Result<AddressResponseDTO>> UpdateUserAddressAsync(
+        string userId,
+        Guid addressId,
+        UpdateAddressRequestDTO request,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var user = await _userRepository.GetUserByIdAsync(userId, cancellationToken);
+
+            if (user == null)
+            {
+                return Result.Fail(UserErrorFactory.UserNotFoundById(userId));
+            }
+
+            var addressExists = await _userRepository.GetUserAddressByIdAsync(addressId, user.KeycloakId, cancellationToken);
+
+            if (addressExists == null)
+            {
+                return Result.Fail(UserErrorFactory.AddressNotFoundById(addressId));
+            }
+
+            if (!CanUpdateAddress(addressExists, request.Address))
+            {
+                _logger.LogInformation("Address is the same as the existing address. Returning existing address.");
+                return new AddressResponseDTO(
+                    addressId,
+                    addressExists.Street,
+                    addressExists.Number,
+                    addressExists.City,
+                    addressExists.State,
+                    addressExists.ZipCode,
+                    addressExists.Country,
+                    addressExists.Complement
+                );
+            }
+
+            var address = new Address(
+                request.Address.Street,
+                request.Address.Number,
+                request.Address.City,
+                request.Address.State,
+                request.Address.ZipCode,
+                request.Address.Country,
+                request.Address.Complement
+                );
+
+            await _userRepository.UpdateUserAddress(addressId, address, user.KeycloakId, cancellationToken);
+
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return new AddressResponseDTO(
+                addressId,
+                address.Street,
+                address.Number,
+                address.City,
+                address.State,
+                address.ZipCode,
+                address.Country,
+                address.Complement
+            );
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync();
+            throw;
+        }
+    }
+
+    private bool CanUpdateAddress(UserAddressMapping existingAddress, AddressRequestDTO newAddress)
+    {
+        return existingAddress.Street == newAddress.Street &&
+               existingAddress.Number == newAddress.Number &&
+               existingAddress.City == newAddress.City &&
+               existingAddress.State == newAddress.State &&
+               existingAddress.ZipCode == newAddress.ZipCode &&
+               existingAddress.Country == newAddress.Country &&
+               existingAddress.Complement == newAddress.Complement;
     }
 
     /*  public async Task CleanupTestUsersAsync(CancellationToken cancellationToken)

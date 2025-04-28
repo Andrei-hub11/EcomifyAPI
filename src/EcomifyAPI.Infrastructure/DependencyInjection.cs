@@ -51,6 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<DapperContext>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<ITransactionHandler, TransactionHandler>();
 
         services.AddScoped<IUserRepository, UserRepository>();
 

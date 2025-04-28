@@ -49,5 +49,6 @@ public interface IAccountService
         UpdateUserRequestDTO request,
         CancellationToken cancellationToken = default
     );
+    Task<Result<AddressResponseDTO>> UpdateUserAddressAsync(string userId, Guid addressId, UpdateAddressRequestDTO request, CancellationToken cancellationToken);
     /*  Task CleanupTestUsersAsync(CancellationToken cancellationToken = default); */
 }

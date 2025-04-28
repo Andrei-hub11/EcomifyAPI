@@ -44,6 +44,10 @@ public class Result
     }
 
     public static Result<T> Ok<T>(T value) => new(value, false, []);
+
+    // Added overload for IEnumerable<T> to better handle collection expressions
+    public static Result<IReadOnlyList<T>> Ok<T>(IEnumerable<T> collection) =>
+        new(collection.ToList(), false, []);
 }
 
 public partial class Result<T> : Result
@@ -79,7 +83,6 @@ public partial class Result<T> : Result
     /// </summary>
     /// <typeparam name="T">O tipo de valor retornado no resultado.</typeparam>
     /// <param name="errorResult">O resultado contendo uma lista de erros.</param>
-
     public static implicit operator Result<T>(Result<List<IError>> errorResult)
     {
         return new Result<T>(default, true, [.. errorResult.Errors]);

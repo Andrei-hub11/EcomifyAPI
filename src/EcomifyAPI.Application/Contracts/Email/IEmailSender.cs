@@ -9,4 +9,5 @@ public interface IEmailSender
     Task SendPasswordResetEmail(string toAddress, string resetLink, TimeSpan tokenValidity);
     Task SendPaymentCancellationEmail(string toAddress, OrderDetails orderDetails);
     Task SendPaymentRefundEmail(string toAddress, OrderDetails orderDetails);
+    Task SendOrderConfirmationEmail(string toAddress, OrderConfirmationEmail orderDetails);
 }

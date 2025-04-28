@@ -25,8 +25,11 @@ public interface IUserRepository : IRepository
         string complement,
         CancellationToken cancellationToken
     );
+    Task<UserAddressMapping?> GetUserAddressByIdAsync(Guid addressId, string userKeycloakId, CancellationToken cancellationToken);
+    Task<IEnumerable<UserRoleMapping>> GetUserRolesAsync(string userId, CancellationToken cancellationToken);
     Task CreateApplicationUser(User user, CancellationToken cancellationToken);
     Task<Guid> CreateUserAddress(Address address, string userKeycloakId, CancellationToken cancellationToken);
+    Task UpdateUserAddress(Guid addressId, Address address, string userKeycloakId, CancellationToken cancellationToken);
     Task UpdateApplicationUser(User user, CancellationToken cancellationToken);
     /*  Task<IEnumerable<ApplicationUserMapping>> GetTestUsersAsync(
          CancellationToken cancellationToken

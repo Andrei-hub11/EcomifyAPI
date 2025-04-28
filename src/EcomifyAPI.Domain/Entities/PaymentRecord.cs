@@ -209,7 +209,7 @@ public sealed class PaymentRecord
             "failed" => PaymentStatusEnum.Failed,
             "refunded" => PaymentStatusEnum.Refunded,
             "cancelled" => PaymentStatusEnum.Cancelled,
-            _ => PaymentStatusEnum.Unknown
+            _ => throw new NotSupportedException($"Payment status not supported: {paypalStatus}")
         };
     }
 
@@ -222,7 +222,7 @@ public sealed class PaymentRecord
             "declined" => PaymentStatusEnum.Failed,
             "refunded" => PaymentStatusEnum.Refunded,
             "cancelled" => PaymentStatusEnum.Cancelled,
-            _ => PaymentStatusEnum.Unknown
+            _ => throw new NotSupportedException($"Payment status not supported: {cardStatus}")
         };
     }
 

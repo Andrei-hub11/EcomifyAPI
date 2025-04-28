@@ -4,4 +4,5 @@ public class AppliedDiscountMapping
 {
     public Guid CartId { get; set; }
     public Guid DiscountId { get; set; }
+    public DateTime AppliedAt { get; set; }
 }

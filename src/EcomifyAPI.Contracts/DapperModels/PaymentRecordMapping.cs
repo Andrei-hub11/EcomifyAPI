@@ -6,6 +6,7 @@ public sealed class PaymentRecordMapping
 {
     public Guid PaymentId { get; set; }
     public Guid OrderId { get; set; }
+    public string CustomerId { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public string CurrencyCode { get; set; } = "BRL";
     public PaymentMethodEnumDTO PaymentMethod { get; set; }

@@ -253,6 +253,35 @@ public class AccountController : ControllerBase
         );
     }
 
+    /// <summary>
+    /// Updates a user's address.
+    /// </summary>
+    /// <param name="userId">The user's ID</param>
+    /// <param name="addressId">The address ID to update</param>
+    /// <param name="request">The address update request</param>
+    /// <param name="cancellationToken">The cancellation token</param>
+    /// <returns>The updated address</returns>
+    /// <response code="200">Returns the updated address</response>
+    /// <response code="400">Some invalid data was provided</response>
+    /// <response code="404">Address not found or user not found</response>
+    /// <response code="422">Validation errors</response>
+    [Authorize]
+    [HttpPut("address/{userId}/{addressId}")]
+    public async Task<IActionResult> UpdateAddress(
+        string userId,
+        Guid addressId,
+        [FromBody] UpdateAddressRequestDTO request,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await _accountService.UpdateUserAddressAsync(userId, addressId, request, cancellationToken);
+
+        return result.Match(
+            onSuccess: (address) => Ok(address),
+            onFailure: (errors) => errors.ToProblemDetailsResult()
+        );
+    }
+
     //[HttpDelete("test-cleanup")]
     //[ApiExplorerSettings(IgnoreApi = true)]
     //public async Task<IActionResult> CleanupTestUsers(CancellationToken cancellationToken)

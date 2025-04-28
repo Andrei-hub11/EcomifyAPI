@@ -1,8 +1,10 @@
+using EcomifyAPI.Application.Contracts.Contexts;
 using EcomifyAPI.Application.Contracts.Data;
 using EcomifyAPI.Application.Contracts.Email;
 using EcomifyAPI.Application.Contracts.Repositories;
 using EcomifyAPI.Application.Contracts.Services;
 using EcomifyAPI.Application.DTOMappers;
+using EcomifyAPI.Common.Extensions.Enums;
 using EcomifyAPI.Common.Utils.Errors;
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Common.Utils.ResultError;
@@ -26,54 +28,82 @@ public class PaymentService : IPaymentService
     private readonly IPaymentRepository _paymentRepository;
     private readonly IOrderRepository _orderRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITransactionHandler _transactionHandler;
     private readonly IEmailSender _emailSender;
+    private readonly IShippingService _shippingService;
+    private readonly IUserContext _userContext;
 
     public PaymentService(
         IPaymentMethodFactory paymentMethodFactory,
         IOrderService orderService,
         ICartService cartService,
         IAccountService accountService,
+        IShippingService shippingService,
+        IEmailSender emailSender,
+        IUserContext userContext,
         IUnitOfWork unitOfWork,
-        IEmailSender emailSender)
+        ITransactionHandler transactionHandler
+    )
     {
         _paymentMethodFactory = paymentMethodFactory;
         _orderService = orderService;
         _cartService = cartService;
         _accountService = accountService;
+        _shippingService = shippingService;
         _unitOfWork = unitOfWork;
+        _transactionHandler = transactionHandler;
         _paymentRepository = _unitOfWork.GetRepository<IPaymentRepository>();
         _orderRepository = _unitOfWork.GetRepository<IOrderRepository>();
         _emailSender = emailSender;
+        _userContext = userContext;
     }
 
-    public async Task<Result<PaymentResponseDTO>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Result<PaginatedResponseDTO<PaymentResponseDTO>>> GetAsync(PaymentFilterRequestDTO request,
+CancellationToken cancellationToken = default)
     {
-        var payment = await _paymentRepository.GetByIdAsync(id, cancellationToken);
+        var payments = await _paymentRepository.GetAsync(request, cancellationToken);
+
+        return Result.Ok(payments.ToPaginatedDTO(request.PageNumber, request.PageSize));
+    }
+
+    public async Task<Result<PaymentResponseDTO>> GetByTransactionIdAsync(Guid transactionId, CancellationToken cancellationToken = default)
+    {
+        var payment = await _paymentRepository.GetByTransactionIdAsync(transactionId, cancellationToken);
 
         if (payment is null)
         {
-            return Result.Fail(PaymentErrorFactory.PaymentNotFound(id));
+            return Result.Fail(PaymentErrorFactory.PaymentNotFoundByTransactionId(transactionId));
         }
 
         return Result.Ok(payment.ToDTO());
     }
 
-    public async Task<Result<IReadOnlyList<PaymentResponseDTO>>> GetAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<PaymentResponseDTO>>> GetPaymentsByCustomerIdAsync(Guid customerId, CancellationToken cancellationToken = default)
     {
-        var payments = await _paymentRepository.GetAsync(cancellationToken);
+        var payments = await _paymentRepository.GetPaymentsByCustomerIdAsync(customerId, cancellationToken);
 
-        return Result.Ok(payments.ToDTO());
+        if (!payments.Any())
+        {
+            return Result.Ok(Enumerable.Empty<PaymentResponseDTO>());
+        }
+
+        return Result.Ok(payments.Select(p => p.ToDTO()));
     }
 
     public async Task<Result<PaymentResponseDTO>> ProcessPaymentAsync(PaymentRequestDTO request, CancellationToken cancellationToken = default)
     {
-        try
+        return await _transactionHandler.ExecuteInTransactionAsync(async () =>
         {
             var cart = await _cartService.GetCartAsync(request.UserId, cancellationToken);
 
             if (cart.IsFailure)
             {
                 return Result.Fail(cart.Errors);
+            }
+
+            if (_userContext.UserId != request.UserId)
+            {
+                return Result.Fail(PaymentErrorFactory.PaymentNotBelongsToUser(_userContext.UserId));
             }
 
             if (cart.Value.Items.Count == 0)
@@ -172,7 +202,43 @@ public class PaymentService : IPaymentService
                 await _paymentRepository.CreateStatusHistoryAsync(paymentId, item, cancellationToken);
             }
 
-            await _unitOfWork.CommitAsync(cancellationToken);
+            var shippingEstimate = await _shippingService.EstimateShippingAsync(new EstimateShippingRequestDTO(
+                request.ShippingAddress.ZipCode, request.ShippingAddress.City, request.ShippingAddress.State),
+                cancellationToken);
+
+            if (shippingEstimate.IsFailure)
+            {
+                return Result.Fail(shippingEstimate.Errors);
+            }
+
+            var shippingCost = shippingEstimate.Value.ShippingCost.Amount;
+            var estimatedDeliveryDate = DateTime.UtcNow.AddDays(shippingEstimate.Value.EstimatedDeliveryDays);
+
+            var orderTrackingUrl = $"https://ecomify.com/orders/{order.Id}";
+
+            var orderConfirmationEmail = new OrderConfirmationEmail(
+                userInfo.Value.User.UserName,
+                order.Id,
+                order.OrderDate,
+                paymentRecord.Value.PaymentMethod.GetDescription(),
+                order.Status.GetDescription(),
+                order.TotalAmount.ToString("N2"),
+                order.Items,
+                order.ShippingAddress,
+                shippingEstimate.Value.ShippingMethod,
+                estimatedDeliveryDate,
+                orderTrackingUrl,
+                order.DiscountAmount,
+                shippingCost,
+                order.TotalAmount,
+                order.TotalWithDiscount + shippingCost,
+                order.CurrencyCode
+            );
+
+            await _emailSender.SendOrderConfirmationEmail(userInfo.Value.User.Email, orderConfirmationEmail);
+
+            // This is not needed because the transaction is handled by the transaction handler
+            // await _unitOfWork.CommitAsync(cancellationToken);
 
             return Result.Ok(new PaymentResponseDTO(
                 paymentRecord.Value.TransactionId,
@@ -189,23 +255,18 @@ public class PaymentService : IPaymentService
                     == PaymentMethodEnum.PayPal ? paymentRecord.Value.GetPayPalDetails()?.PayPalEmail.Value : null,
                 [.. paymentRecord.Value.StatusHistory.Select(statusHistory => statusHistory.ToDTO())]
             ));
-        }
-        catch (Exception)
-        {
-            await _unitOfWork.RollbackAsync(cancellationToken);
-            throw;
-        }
+        }, cancellationToken);
     }
 
-    public async Task<Result<bool>> CancelPaymentAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Result<bool>> CancelPaymentAsync(Guid transactionId, CancellationToken cancellationToken = default)
     {
-        try
+        return await _transactionHandler.ExecuteInTransactionAsync(async () =>
         {
-            var payment = await _paymentRepository.GetByIdAsync(id, cancellationToken);
+            var payment = await _paymentRepository.GetByTransactionIdAsync(transactionId, cancellationToken);
 
             if (payment is null)
             {
-                return Result.Fail(PaymentErrorFactory.PaymentNotFound(id));
+                return Result.Fail(PaymentErrorFactory.PaymentNotFoundByTransactionId(transactionId));
             }
 
             // Check if payment can be canceled (only if not already refunded/canceled)
@@ -214,7 +275,6 @@ public class PaymentService : IPaymentService
                 return Result.Fail(PaymentErrorFactory.PaymentAlreadyProcessed(payment.PaymentId));
             }
 
-            // Get order details
             var order = await _orderRepository.GetByIdAsync(payment.OrderId, cancellationToken);
 
             if (order is null)
@@ -222,13 +282,18 @@ public class PaymentService : IPaymentService
                 return Result.Fail(OrderErrorFactory.OrderNotFound(payment.OrderId));
             }
 
+            /*             if (order.UserId != payment.CustomerId)
+                        {
+                            return Result.Fail(PaymentErrorFactory.PaymentNotBelongsToOrder(payment.PaymentId, order.Id));
+                        } */
+
             // Prevent cancellation if the order is already shipped or completed
             if (order.Status.ToOrderStatusDomain() == OrderStatusEnum.Shipped ||
                 order.Status.ToOrderStatusDomain() == OrderStatusEnum.Completed)
             {
                 return Result.Fail(
                     Error.Failure(
-                        $"Cannot cancel payment for order that has already been {order.Status.ToString().ToLower()}.",
+                        $"Cannot cancel payment for order that has already been {order.Status.GetDescription()}.",
                         "ERR_ORDER_ALREADY_PROCESSED"
                     )
                 );
@@ -245,15 +310,12 @@ public class PaymentService : IPaymentService
             // Add some delay to simulate payment gateway communication
             await Task.Delay(1000, cancellationToken);
 
-            // Update payment status
             var paymentDomain = payment.ToDomain();
             var cancellationReason = "Payment cancelled by user request";
             paymentDomain.MarkAsCancelled(cancellationReason);
 
-            // Update payment in database
             await _paymentRepository.UpdateAsync(paymentDomain, cancellationToken);
 
-            // Add status history entry
             await _paymentRepository.CreateStatusHistoryAsync(
                 payment.PaymentId,
                 new PaymentStatusChange(
@@ -265,10 +327,8 @@ public class PaymentService : IPaymentService
                 cancellationToken
             );
 
-            // Update order status
             await _orderService.UpdateStatusAsync(order.Id, OrderStatusEnum.Cancelled, cancellationToken);
 
-            // Create an order details object for the email
             var orderDetails = new OrderDetails(
                 order.Id,
                 payment.TransactionId.ToString(),
@@ -277,29 +337,23 @@ public class PaymentService : IPaymentService
                 order.TotalAmount,
                 userResult.Value.User.UserName);
 
-            // Send email notification
             await _emailSender.SendPaymentCancellationEmail(userResult.Value.User.Email, orderDetails);
 
-            await _unitOfWork.CommitAsync(cancellationToken);
+            // await _unitOfWork.CommitAsync(cancellationToken);
 
             return Result.Ok(true);
-        }
-        catch (Exception)
-        {
-            await _unitOfWork.RollbackAsync(cancellationToken);
-            throw;
-        }
+        }, cancellationToken);
     }
 
-    public async Task<Result<bool>> RefundPaymentAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Result<bool>> RefundPaymentAsync(Guid transactionId, CancellationToken cancellationToken = default)
     {
-        try
+        return await _transactionHandler.ExecuteInTransactionAsync(async () =>
         {
-            var payment = await _paymentRepository.GetByIdAsync(id, cancellationToken);
+            var payment = await _paymentRepository.GetByTransactionIdAsync(transactionId, cancellationToken);
 
             if (payment is null)
             {
-                return Result.Fail(PaymentErrorFactory.PaymentNotFound(id));
+                return Result.Fail(PaymentErrorFactory.PaymentNotFoundByTransactionId(transactionId));
             }
 
             // Check if payment can be refunded (only if not already refunded/canceled)
@@ -308,7 +362,6 @@ public class PaymentService : IPaymentService
                 return Result.Fail(PaymentErrorFactory.PaymentAlreadyProcessed(payment.PaymentId));
             }
 
-            // Get order details
             var order = await _orderRepository.GetByIdAsync(payment.OrderId, cancellationToken);
 
             if (order is null)
@@ -327,15 +380,12 @@ public class PaymentService : IPaymentService
             // Simulate payment gateway processing time
             await Task.Delay(2000, cancellationToken);
 
-            // Update payment status
             var paymentDomain = payment.ToDomain();
             var refundReason = "Payment refunded - We hope to see you again soon!";
             paymentDomain.MarkAsRefunded(refundReason);
 
-            // Update payment in database
             await _paymentRepository.UpdateAsync(paymentDomain, cancellationToken);
 
-            // Add status history entry
             await _paymentRepository.CreateStatusHistoryAsync(
                 payment.PaymentId,
                 new PaymentStatusChange(
@@ -347,10 +397,8 @@ public class PaymentService : IPaymentService
                 cancellationToken
             );
 
-            // Update order status (using Refunded status instead of Cancelled)
             await _orderService.UpdateStatusAsync(order.Id, OrderStatusEnum.Refunded, cancellationToken);
 
-            // Create an order details object for the email
             var orderDetails = new OrderDetails(
                 order.Id,
                 payment.TransactionId.ToString(),
@@ -359,18 +407,12 @@ public class PaymentService : IPaymentService
                 order.TotalAmount,
                 userResult.Value.User.UserName);
 
-            // Send email notification
             await _emailSender.SendPaymentRefundEmail(userResult.Value.User.Email, orderDetails);
 
-            await _unitOfWork.CommitAsync(cancellationToken);
+            // await _unitOfWork.CommitAsync(cancellationToken);
 
             return Result.Ok(true);
-        }
-        catch (Exception)
-        {
-            await _unitOfWork.RollbackAsync(cancellationToken);
-            throw;
-        }
+        }, cancellationToken);
     }
 
     public string GetCardBrand(string cardNumber)

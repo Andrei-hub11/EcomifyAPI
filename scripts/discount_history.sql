@@ -12,7 +12,7 @@ CREATE TABLE discount_history (
 
     CONSTRAINT fk_discount_history_order FOREIGN KEY (order_id) REFERENCES orders(id),
     CONSTRAINT fk_discount_history_customer FOREIGN KEY (customer_id) REFERENCES users(keycloak_id),
-    CONSTRAINT fk_discount_history_discount FOREIGN KEY (discount_id) REFERENCES discounts(id),
+    CONSTRAINT fk_discount_history_discount FOREIGN KEY (discount_id) REFERENCES discounts(id) ON DELETE CASCADE,
 
      CONSTRAINT check_discount_values CHECK (
         (discount_type = 1 AND fixed_amount IS NOT NULL AND percentage IS NULL) OR  -- Fixed amount discount

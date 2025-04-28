@@ -93,14 +93,20 @@ internal class PercentageDiscountStrategy : IDiscountStrategyResolver
 
             var recentDiscounts = await _discountRepository.GetRecentDiscountsByCustomerIdAsync(
                 _userContext.UserId,
-                DateTime.UtcNow.AddDays(-30)
-            );
+                DateTime.UtcNow.AddDays(-1));
 
             var count = recentDiscounts.Count();
 
-            if (count > 3)
+            if (count > 8)
             {
                 return Result.Fail("Customer has received too many discounts recently");
+            }
+
+            var userUsages = await _discountRepository.GetUserUsagesAsync(_userContext.UserId, cancellationToken);
+
+            if (!coupon.Value.IsValidForUse(orderAmount, userUsages))
+            {
+                return Result.Fail(DiscountErrorFactory.DiscountNotValidForUse(existingDiscount.Id));
             }
 
             // Calculate the discounted value
@@ -146,6 +152,17 @@ internal class PercentageDiscountStrategy : IDiscountStrategyResolver
                 return Result.Ok(0m);
             }
 
+            var recentDiscounts = await _discountRepository.GetRecentDiscountsByCustomerIdAsync(
+                _userContext.UserId,
+                DateTime.UtcNow.AddDays(-7));
+
+            var count = recentDiscounts.Count();
+
+            if (count > 8)
+            {
+                return Result.Fail("Customer has received too many discounts recently");
+            }
+
             var totalDiscount = 0m;
 
             foreach (var discountId in discountIds.Distinct())
@@ -182,6 +199,13 @@ internal class PercentageDiscountStrategy : IDiscountStrategyResolver
                 if (existingDiscount.MinOrderAmount > cartAmount)
                 {
                     return Result.Fail(DiscountErrorFactory.MinimumOrderAmountNotReached(existingDiscount.MinOrderAmount));
+                }
+
+                var userUsages = await _discountRepository.GetUserUsagesAsync(_userContext.UserId, cancellationToken);
+
+                if (!coupon.Value.IsValidForUse(cartAmount, userUsages))
+                {
+                    return Result.Fail(DiscountErrorFactory.DiscountNotValidForUse(existingDiscount.Id));
                 }
 
                 var discountValue = existingDiscount.FixedAmount;

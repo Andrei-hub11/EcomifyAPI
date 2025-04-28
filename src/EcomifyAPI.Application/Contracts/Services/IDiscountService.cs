@@ -13,6 +13,8 @@ public interface IDiscountService
     Task<Result<IReadOnlyList<DiscountResponseDTO>>> GetDiscountToApply(string userId, CancellationToken cancellationToken = default);
     Task<Result<DiscountResponseDTO>> CreateAsync(CreateDiscountRequestDTO request, CancellationToken cancellationToken = default);
     Task<Result<bool>> CreateDiscountHistoryAsync(DiscountHistory discountHistory, CancellationToken cancellationToken = default);
+    Task<Result<bool>> IncrementUsageAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Result<bool>> DeactivateAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result<bool>> ClearAppliedDiscountsAsync(Guid cartId, CancellationToken cancellationToken = default);
 }

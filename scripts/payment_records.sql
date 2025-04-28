@@ -26,7 +26,7 @@ CREATE TABLE payment_status_history (
     timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     reference TEXT NOT NULL,
     
-    CONSTRAINT fk_payment FOREIGN KEY (payment_id) REFERENCES payment_records(id)
+    CONSTRAINT fk_payment FOREIGN KEY (payment_id) REFERENCES payment_records(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_payment_order_id ON payment_records(order_id);
