@@ -25,6 +25,9 @@ public class RateLimitingTests : IAsyncLifetime
     [Fact]
     public async Task GetProducts_ShouldReturnTooManyRequestsAfterExceedingLimit()
     {
+        var testId = Guid.NewGuid().ToString();
+        _client.DefaultRequestHeaders.Add("X-Test-ID", testId);
+
         var tasks = Enumerable.Range(0, 10)
         .Select(_ => _client.GetAsync($"{_baseUrl}/products"))
         .ToList();
@@ -45,5 +48,9 @@ public class RateLimitingTests : IAsyncLifetime
 
     public Task InitializeAsync() => Task.CompletedTask;
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync()
+    {
+        _client.DefaultRequestHeaders.Remove("X-Test-ID");
+        return Task.CompletedTask;
+    }
 }

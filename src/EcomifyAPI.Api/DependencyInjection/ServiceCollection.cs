@@ -10,7 +10,8 @@ namespace EcomifyAPI.Api.DependencyInjection;
 public static class ServiceCollection
 {
     public static IServiceCollection AddPresentation(this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IWebHostEnvironment environment)
     {
         services.AddCors(configuration);
 
@@ -24,7 +25,7 @@ public static class ServiceCollection
         services.AddProblemDetails();
         services.AddExceptionHandler<ExceptionHandler>();
 
-        services.AddFixedWindowRateLimiting();
+        services.AddFixedWindowRateLimiting(environment);
 
         return services;
     }
@@ -50,10 +51,44 @@ public static class ServiceCollection
         return services;
     }
 
-    public static IServiceCollection AddFixedWindowRateLimiting(this IServiceCollection services)
+    public static IServiceCollection AddFixedWindowRateLimiting(this IServiceCollection services, IWebHostEnvironment environment)
     {
         services.AddRateLimiter(options =>
         {
+            if (environment.IsEnvironment("INTEGRATION_TEST"))
+            {
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+               httpContext =>
+               {
+                   // Get a unique identifier for each test request
+                   var testId = httpContext.Request.Headers["X-Test-ID"].FirstOrDefault() ?? Guid.NewGuid().ToString();
+
+                   return RateLimitPartition.GetFixedWindowLimiter(
+                       testId,
+                       factory: partition => new FixedWindowRateLimiterOptions
+                       {
+                           Window = TimeSpan.FromSeconds(2), // Window smaller for tests
+                           PermitLimit = 3,                  // Limit smaller for tests
+                           QueueLimit = 0,
+                           QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                       });
+               });
+            }
+            else
+            {
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+                  httpContext => RateLimitPartition.GetFixedWindowLimiter(
+                      httpContext.Connection.RemoteIpAddress?.ToString() ?? "Default",
+                      factory: partition => new FixedWindowRateLimiterOptions
+                      {
+                          Window = TimeSpan.FromSeconds(10),
+                          PermitLimit = 5,
+                          QueueLimit = 2,
+                          QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                      }));
+
+            }
+
             /* options.AddPolicy("FixedWindow",
             httpContext => RateLimitPartition.GetFixedWindowLimiter(
                 httpContext.Connection.RemoteIpAddress?.ToString() ?? "Default",
@@ -65,16 +100,7 @@ public static class ServiceCollection
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 })); */
 
-            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
-       httpContext => RateLimitPartition.GetFixedWindowLimiter(
-           httpContext.Connection.RemoteIpAddress?.ToString() ?? "Default",
-           factory: partition => new FixedWindowRateLimiterOptions
-           {
-               Window = TimeSpan.FromSeconds(10),
-               PermitLimit = 5,
-               QueueLimit = 2,
-               QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-           }));
+
 
             options.OnRejected = async (context, token) =>
             {
