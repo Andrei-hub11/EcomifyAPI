@@ -10,6 +10,8 @@ DROP TABLE IF EXISTS discount_history;
 DROP TABLE IF EXISTS discount_categories;
 DROP TABLE IF EXISTS applied_discounts;
 DROP TABLE IF EXISTS discounts;
+DROP TABLE IF EXISTS payment_status_history;
+DROP TABLE IF EXISTS payment_records;
 
 -- Create tables in order of dependencies
 
@@ -26,6 +28,23 @@ CREATE TABLE users (
     profile_picture_url TEXT,
     status user_status NOT NULL DEFAULT 'active',
     CONSTRAINT fk_keycloak_user FOREIGN KEY (keycloak_id) REFERENCES user_entity(id) ON DELETE CASCADE
+);
+
+-- User Addresses table
+CREATE TABLE user_addresses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_keycloak_id VARCHAR(255) NOT NULL,
+    street VARCHAR(255) NOT NULL,
+    number int NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    state VARCHAR(100) NOT NULL,
+    zip_code VARCHAR(20) NOT NULL,
+    country VARCHAR(100) NOT NULL,
+    complement VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_user_keycloak FOREIGN KEY (user_keycloak_id) REFERENCES users(keycloak_id) ON DELETE CASCADE
 );
 
 -- Categories table
@@ -88,14 +107,14 @@ CREATE TABLE cart_items (
 
 -- Orders table
 CREATE TABLE orders (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_keycloak_id VARCHAR(36) NOT NULL,
     total_amount DECIMAL(18,2) NOT NULL,
     discount_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
     total_with_discount DECIMAL(18,2) NOT NULL DEFAULT 0,
     currency_code VARCHAR(3) NOT NULL,
     order_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5, 6, 7, 8)),
+    status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5)),
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMP WITHOUT TIME ZONE,
     shipping_street VARCHAR(255) NOT NULL,
@@ -199,6 +218,45 @@ CREATE TABLE discount_history (
         (discount_type = 3 AND ((fixed_amount IS NOT NULL OR percentage IS NOT NULL) AND coupon_code IS NOT NULL))  -- Discount with coupon
     )
 );
+
+-- Payment Records table
+CREATE TABLE payment_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    currency_code VARCHAR(3) NOT NULL DEFAULT 'BRL',
+    payment_method SMALLINT NOT NULL CHECK (payment_method IN (1, 2)),
+    transaction_id UUID NOT NULL,
+    processed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5, 6)),
+    gateway_response TEXT,
+    
+    cc_last_four_digits VARCHAR(4),
+    cc_brand VARCHAR(20),
+    
+    paypal_email VARCHAR(100),
+    paypal_payer_id VARCHAR(100),
+    
+    CONSTRAINT fk_payment_order FOREIGN KEY (order_id) REFERENCES orders(id),
+    CONSTRAINT unique_transaction_id UNIQUE (transaction_id)
+);
+
+-- Payment Status History table
+CREATE TABLE payment_status_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    payment_id UUID NOT NULL,
+    status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5, 6)),
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    reference TEXT NOT NULL,
+    
+    CONSTRAINT fk_payment FOREIGN KEY (payment_id) REFERENCES payment_records(id) ON DELETE CASCADE
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_payment_order_id ON payment_records(order_id);
+CREATE INDEX idx_payment_status ON payment_records(status);
+CREATE INDEX idx_payment_transaction_id ON payment_records(transaction_id);
+CREATE INDEX idx_status_history_payment_id ON payment_status_history(payment_id);
 
 -- Insert initial categories
 INSERT INTO categories (name, description) VALUES

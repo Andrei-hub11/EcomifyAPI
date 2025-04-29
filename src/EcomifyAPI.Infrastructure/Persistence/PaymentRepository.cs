@@ -235,7 +235,7 @@ public sealed class PaymentRepository : IPaymentRepository
         return paymentRecord.FirstOrDefault();
     }
 
-    public async Task<IEnumerable<PaymentRecordMapping>> GetPaymentsByCustomerIdAsync(Guid customerId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<PaymentRecordMapping>> GetPaymentsByCustomerIdAsync(string customerId, CancellationToken cancellationToken = default)
     {
         const string query = @"
             SELECT p.id AS paymentId, p.order_id AS orderId, p.amount, p.currency_code AS currencyCode, p.payment_method as paymentMethod, 

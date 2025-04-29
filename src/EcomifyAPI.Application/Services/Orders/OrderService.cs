@@ -80,10 +80,24 @@ public sealed class OrderService : IOrderService
         }
     }
 
+    public async Task<Result<PaginatedResponseDTO<OrderResponseDTO>>> GetFilteredAsync(
+    OrderFilterRequestDTO filter,
+    CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var (orders, totalCount) = await _orderRepository.GetFilteredAsync(filter, cancellationToken);
+
+            return Result.Ok(orders.ToResponseDTO(filter.Page, filter.PageSize, totalCount));
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
+
     public async Task<Result<OrderResponseDTO>> CreateOrderAsync(CreateOrderRequestDTO request, CancellationToken cancellationToken = default)
     {
-        var originalProductState = new Dictionary<Guid, Product>();
-
         try
         {
             var user = await _accountService.GetByIdAsync(request.UserId, cancellationToken);
@@ -137,7 +151,6 @@ public sealed class OrderService : IOrderService
 
                 if (productDTO.IsFailure)
                 {
-                    await RestoreProductState(originalProductState, cancellationToken);
                     return Result.Fail(productDTO.Errors);
                 }
 
@@ -145,17 +158,13 @@ public sealed class OrderService : IOrderService
 
                 if (product.Stock < item.Quantity)
                 {
-                    await RestoreProductState(originalProductState, cancellationToken);
                     return Result.Fail(ProductErrorFactory.ProductOutOfStock(item.ProductId));
                 }
-
-                originalProductState.Add(product.Id, product);
 
                 order.Value.AddItem(product, item.Quantity, new Money(item.UnitPrice.Code, item.UnitPrice.Amount));
 
                 if (!product.DecrementStock(item.Quantity))
                 {
-                    await RestoreProductState(originalProductState, cancellationToken);
                     return Result.Fail(ProductErrorFactory.ProductOutOfStock(item.ProductId));
                 }
 
@@ -185,7 +194,6 @@ public sealed class OrderService : IOrderService
 
             if (discountsToApply.IsFailure)
             {
-                await RestoreProductState(originalProductState, cancellationToken);
                 return Result.Fail(discountsToApply.Errors);
             }
 
@@ -204,7 +212,6 @@ public sealed class OrderService : IOrderService
 
                 if (discountResult.IsFailure)
                 {
-                    await RestoreProductState(originalProductState, cancellationToken);
                     return Result.Fail(discountResult.Errors);
                 }
 
@@ -229,7 +236,6 @@ public sealed class OrderService : IOrderService
 
                     if (discountHistory.IsFailure)
                     {
-                        await RestoreProductState(originalProductState, cancellationToken);
                         return Result.Fail(discountHistory.Errors);
                     }
 
@@ -261,7 +267,6 @@ public sealed class OrderService : IOrderService
 
             if (orderResponse.IsFailure)
             {
-                await RestoreProductState(originalProductState, cancellationToken);
                 return Result.Fail(orderResponse.Errors);
             }
 
@@ -269,28 +274,8 @@ public sealed class OrderService : IOrderService
         }
         catch (Exception)
         {
-            await RestoreProductState(originalProductState, CancellationToken.None);
-
             await _unitOfWork.RollbackAsync();
             throw;
-        }
-    }
-
-    private async Task RestoreProductState(Dictionary<Guid, Product> originalProductState, CancellationToken cancellationToken = default)
-    {
-        foreach (var product in originalProductState)
-        {
-            await _productService.UpdateAsync(
-            product.Key,
-            new UpdateProductRequestDTO(
-                product.Value.Name,
-                product.Value.Description,
-                product.Value.Price.Amount,
-                product.Value.Price.Code,
-                product.Value.Stock,
-                product.Value.ImageUrl,
-                (ProductStatusDTO)product.Value.Status,
-                new UpdateProductCategoryRequestDTO([.. product.Value.ProductCategories.Select(c => c.CategoryId)])), cancellationToken);
         }
     }
 
@@ -319,7 +304,85 @@ public sealed class OrderService : IOrderService
 
             _logger.LogInformation($"Updating order {orderId} status from {orderDomain.Status} to {status}");
 
-            orderDomain.UpdateStatus(status);
+            switch (status)
+            {
+                case OrderStatusEnum.Cancelled:
+                    orderDomain.CancelOrder();
+                    break;
+                /*  case OrderStatusEnum.Shipped:
+                     await MarkAsShippedAsync(orderId, cancellationToken);
+                     break; */
+                case OrderStatusEnum.Completed:
+                    orderDomain.CompleteOrder();
+                    break;
+                default:
+                    orderDomain.UpdateStatus(status);
+                    break;
+            }
+
+            await _orderRepository.UpdateAsync(orderDomain, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return true;
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<Result<bool>> MarkAsShippedAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var existingOrder = await _orderRepository.GetByIdAsync(orderId, cancellationToken);
+
+            if (existingOrder is null)
+            {
+                return Result.Fail(OrderErrorFactory.OrderNotFound(orderId));
+            }
+
+            var orderDomain = existingOrder.ToDomain();
+
+            if (orderDomain.Status == OrderStatusEnum.Shipped || orderDomain.Status == OrderStatusEnum.Completed)
+            {
+                return Result.Fail(Error.Failure("Order is already shipped or completed", "ERR_ORDER"));
+            }
+
+            orderDomain.ShipOrder();
+
+            await _orderRepository.UpdateAsync(orderDomain, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            return true;
+        }
+        catch (Exception)
+        {
+            await _unitOfWork.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<Result<bool>> MarkAsCompletedAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var existingOrder = await _orderRepository.GetByIdAsync(orderId, cancellationToken);
+
+            if (existingOrder is null)
+            {
+                return Result.Fail(OrderErrorFactory.OrderNotFound(orderId));
+            }
+
+            var orderDomain = existingOrder.ToDomain();
+
+            if (orderDomain.Status != OrderStatusEnum.Shipped)
+            {
+                return Result.Fail(Error.Failure("Order is not shipped and cannot be completed", "ERR_ORDER"));
+            }
+
+            orderDomain.CompleteOrder();
 
             await _orderRepository.UpdateAsync(orderDomain, cancellationToken);
             await _unitOfWork.CommitAsync(cancellationToken);

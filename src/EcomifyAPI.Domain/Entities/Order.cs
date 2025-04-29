@@ -261,7 +261,7 @@ public sealed class Order
     {
         if (Status != OrderStatusEnum.Confirmed)
         {
-            throw new InvalidOperationException("Confirmed order cannot be shipped");
+            throw new InvalidOperationException("Order is not confirmed and cannot be shipped");
         }
 
         UpdateStatus(OrderStatusEnum.Shipped);
@@ -271,7 +271,7 @@ public sealed class Order
     {
         if (Status != OrderStatusEnum.Shipped)
         {
-            throw new InvalidOperationException("Shipped order cannot be completed");
+            throw new InvalidOperationException("Order is not shipped and cannot be completed");
         }
 
         UpdateStatus(OrderStatusEnum.Completed);

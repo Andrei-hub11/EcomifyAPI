@@ -1,10 +1,12 @@
 using System.Data;
+using System.Text;
 
 using Dapper;
 
 using EcomifyAPI.Application.Contracts.Repositories;
 using EcomifyAPI.Common.Helpers;
 using EcomifyAPI.Contracts.DapperModels;
+using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Domain.Entities;
 using EcomifyAPI.Domain.ValueObjects;
 
@@ -451,5 +453,184 @@ public class OrderRepository : IOrderRepository
         }
 
         return orders.FirstOrDefault();
+    }
+
+    public async Task<(IEnumerable<OrderMapping> Orders, int TotalCount)> GetFilteredAsync(
+        OrderFilterRequestDTO filter,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var sql = new StringBuilder(@"
+            WITH filtered_orders AS (
+                SELECT 
+                    o.id,
+                    o.user_keycloak_id,
+                    o.currency_code,
+                    o.order_date,
+                    o.status,
+                    o.total_amount,
+                    o.discount_amount,
+                    o.total_with_discount,
+                    o.shipping_street,
+                    o.shipping_number,
+                    o.shipping_city,
+                    o.shipping_state,
+                    o.shipping_zip_code,
+                    o.shipping_country,
+                    o.shipping_complement,
+                    o.billing_street,
+                    o.billing_number,
+                    o.billing_city,
+                    o.billing_state,
+                    o.billing_zip_code,
+                    o.billing_country,
+                    o.billing_complement
+                FROM orders o
+                WHERE 1=1");
+
+        var parameters = new DynamicParameters();
+
+        if (filter.Id.HasValue)
+        {
+            sql.Append(" AND o.id = @Id");
+            parameters.Add("Id", filter.Id.Value);
+        }
+
+        if (!string.IsNullOrEmpty(filter.UserId))
+        {
+            sql.Append(" AND o.user_keycloak_id = @UserId");
+            parameters.Add("UserId", filter.UserId);
+        }
+
+        if (filter.StartDate.HasValue)
+        {
+            sql.Append(" AND o.order_date >= @StartDate");
+            parameters.Add("StartDate", filter.StartDate.Value);
+        }
+
+        if (filter.EndDate.HasValue)
+        {
+            sql.Append(" AND o.order_date <= @EndDate");
+            parameters.Add("EndDate", filter.EndDate.Value);
+        }
+
+        if (filter.Status.HasValue)
+        {
+            sql.Append(" AND o.status = @Status");
+            parameters.Add("Status", (int)filter.Status.Value);
+        }
+
+        if (filter.MinAmount.HasValue)
+        {
+            sql.Append(" AND o.total_with_discount >= @MinAmount");
+            parameters.Add("MinAmount", filter.MinAmount.Value);
+        }
+
+        if (filter.MaxAmount.HasValue)
+        {
+            sql.Append(" AND o.total_with_discount <= @MaxAmount");
+            parameters.Add("MaxAmount", filter.MaxAmount.Value);
+        }
+
+        // Count total number of records
+        var countSql = $"SELECT COUNT(*) FROM filtered_orders";
+
+        // Apply sorting
+        sql.Append($" ORDER BY o.{filter.SortBy} {(filter.SortAscending ? "ASC" : "DESC")}");
+
+        // Apply pagination
+        sql.Append(@"),
+            order_data AS (
+                SELECT
+                    fo.*,
+                    COALESCE(
+                        JSON_AGG(
+                            JSON_BUILD_OBJECT(
+                                'ItemId', i.id,
+                                'OrderId', i.order_id,
+                                'ProductId', i.product_id,
+                                'ProductName', p.name,
+                                'Quantity', i.quantity,
+                                'UnitPrice', i.unit_price,
+                                'CurrencyCode', i.currency_code,
+                                'TotalPrice', i.total_price
+                            )
+                        ) FILTER (WHERE i.id IS NOT NULL),
+                        '[]'::json
+                    ) AS ItemsJson
+                FROM filtered_orders fo
+                LEFT JOIN order_items i ON fo.id = i.order_id
+                LEFT JOIN products p ON i.product_id = p.id
+                GROUP BY 
+                    fo.id,
+                    fo.user_keycloak_id,
+                    fo.currency_code,
+                    fo.order_date,
+                    fo.status,
+                    fo.total_amount,
+                    fo.discount_amount,
+                    fo.total_with_discount,
+                    fo.shipping_street,
+                    fo.shipping_city,
+                    fo.shipping_state,
+                    fo.shipping_zip_code,
+                    fo.shipping_country,
+                    fo.billing_street,
+                    fo.billing_city,
+                    fo.billing_state,
+                    fo.billing_zip_code,
+                    fo.billing_country
+            )
+            SELECT * FROM order_data
+            LIMIT @PageSize OFFSET @Offset");
+
+        parameters.Add("PageSize", filter.PageSize);
+        parameters.Add("Offset", (filter.Page - 1) * filter.PageSize);
+
+        using var multi = await Connection.QueryMultipleAsync(
+            new CommandDefinition(
+                $"{sql}; {countSql}",
+                parameters,
+                transaction: Transaction,
+                cancellationToken: cancellationToken
+            )
+        );
+
+        var orders = await multi.ReadAsync<OrderMapping>();
+        var totalCount = await multi.ReadSingleAsync<int>();
+
+        foreach (var order in orders)
+        {
+            var items = JsonConvert.DeserializeObject<List<OrderItemMapping>>(order.ItemsJson);
+
+            ThrowHelper.ThrowIfNull(items, "Items");
+
+            order.Items = items;
+
+            order.ShippingAddress = new ShippingAddressMapping
+            {
+                ShippingStreet = order.ShippingStreet,
+                ShippingNumber = order.ShippingNumber,
+                ShippingCity = order.ShippingCity,
+                ShippingState = order.ShippingState,
+                ShippingZipCode = order.ShippingZipCode,
+                ShippingCountry = order.ShippingCountry,
+                ShippingComplement = order.ShippingComplement
+            };
+
+            order.BillingAddress = new BillingAddressMapping
+            {
+                BillingStreet = order.BillingStreet,
+                BillingNumber = order.BillingNumber,
+                BillingCity = order.BillingCity,
+                BillingState = order.BillingState,
+                BillingZipCode = order.BillingZipCode,
+                BillingCountry = order.BillingCountry,
+                BillingComplement = order.BillingComplement
+            };
+        }
+
+        return (orders, totalCount);
     }
 }

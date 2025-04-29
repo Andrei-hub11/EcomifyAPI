@@ -19,6 +19,13 @@ public class ShippingController : ControllerBase
         _shippingService = shippingService;
     }
 
+    /// <summary>
+    /// Estimates the shipping cost for an order
+    /// </summary>
+    /// <param name="request">The request containing the shipping details</param>
+    /// <param name="cancellationToken">The cancellation token</param>
+    /// <returns>The <see cref="ShippingResponseDTO"/> representing the estimated shipping cost</returns>
+    /// <response code="200">The shipping cost was estimated successfully</response>
     [HttpPost("estimate")]
     public async Task<IActionResult> EstimateShipping([FromBody] EstimateShippingRequestDTO request,
     CancellationToken cancellationToken = default)

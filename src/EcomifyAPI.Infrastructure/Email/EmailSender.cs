@@ -5,22 +5,32 @@ using EcomifyAPI.Domain.ValueObjects;
 
 using FluentEmail.Core;
 
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
+
 namespace EcomifyAPI.Infrastructure.Email;
 
 internal class EmailSender : IEmailSender
 {
     private readonly IFluentEmail _fluentEmail;
+    private readonly IWebHostEnvironment _environment;
     private readonly string _srcDirectory;
 
-    public EmailSender(IFluentEmail fluentEmail)
+    public EmailSender(IFluentEmail fluentEmail, IWebHostEnvironment environment)
     {
         _fluentEmail = fluentEmail
             ?? throw new ArgumentNullException(nameof(fluentEmail));
+        _environment = environment;
         _srcDirectory = DirectoryHelper.FindDirectoryAbove(AppDomain.CurrentDomain.BaseDirectory, "src");
     }
 
     public async Task Send(EmailMetadata emailMetadata)
     {
+        if (_environment.IsEnvironment("INTEGRATION_TEST"))
+        {
+            return;
+        }
+
         await _fluentEmail.To(emailMetadata.ToAddress)
             .Subject(emailMetadata.Subject)
             .Body(emailMetadata.Body)
@@ -29,6 +39,11 @@ internal class EmailSender : IEmailSender
 
     public async Task SendPasswordResetEmail(string toAddress, string resetLink, TimeSpan tokenValidity)
     {
+        if (_environment.IsEnvironment("INTEGRATION_TEST"))
+        {
+            return;
+        }
+
         var model = new PasswordResetEmail(resetLink, tokenValidity);
 
         string templatePath = Path.Combine(_srcDirectory, "EcomifyAPI.Infrastructure", "Email", "Templates", "PasswordReset.cshtml");
@@ -47,6 +62,11 @@ internal class EmailSender : IEmailSender
 
     public async Task SendPaymentCancellationEmail(string toAddress, OrderDetails orderDetails)
     {
+        if (_environment.IsEnvironment("INTEGRATION_TEST"))
+        {
+            return;
+        }
+
         var model = new PaymentCancellationEmail(
             orderDetails.OrderId.ToString(),
             orderDetails.TotalAmount,
@@ -71,6 +91,11 @@ internal class EmailSender : IEmailSender
 
     public async Task SendPaymentRefundEmail(string toAddress, OrderDetails orderDetails)
     {
+        if (_environment.IsEnvironment("INTEGRATION_TEST"))
+        {
+            return;
+        }
+
         var model = new PaymentRefundEmail(
             orderDetails.OrderId.ToString(),
             orderDetails.TotalAmount,
@@ -96,6 +121,11 @@ internal class EmailSender : IEmailSender
 
     public async Task SendOrderConfirmationEmail(string toAddress, OrderConfirmationEmail orderDetails)
     {
+        if (_environment.IsEnvironment("INTEGRATION_TEST"))
+        {
+            return;
+        }
+
         string templatePath = Path.Combine(_srcDirectory, "EcomifyAPI.Infrastructure", "Email", "Templates", "OrderConfirmation.cshtml");
 
         if (!File.Exists(templatePath))

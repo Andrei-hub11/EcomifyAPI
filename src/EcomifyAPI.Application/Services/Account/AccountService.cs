@@ -442,11 +442,15 @@ public class AccountService : IAccountService
 
             var token = _tokenService.GeneratePasswordResetToken(user.Value);
 
-            var allowedOrigins =
-                _configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                ?? throw new NullReferenceException("'AllowedOrigins' cannot be null");
 
-            var clientUrl = allowedOrigins[0];
+            // we dont have client url in this project
+            /* var allowedOrigins =
+                _configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                ?? throw new NullReferenceException("'AllowedOrigins' cannot be null"); */
+
+
+            var clientUrl = _configuration.GetSection("https:applicationUrl").Get<string>()
+                ?? throw new NullReferenceException("'ApplicationUrl' cannot be null");
 
             if (string.IsNullOrWhiteSpace(clientUrl))
             {
@@ -641,7 +645,7 @@ public class AccountService : IAccountService
 
             if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
             {
-                return Result.Fail(Error.Validation("Password must be at least 8 characters long", "ERR_PASSWORD_MUST_BE_AT_LEAST_8_CHARACTERS_LONG", "Password"));
+                return Result.Fail(Error.Validation("Password must be at least 8 characters long", "ERR_PASSWORD_TOO_SHORT", "Password"));
             }
 
             var userExisting = await _userRepository.GetUserByIdAsync(
@@ -669,7 +673,7 @@ public class AccountService : IAccountService
             }
 
             await _keycloakService.UpdateUserPasswordAsync(
-                user.Value.Id.ToString(),
+                user.Value.KeycloakId,
                 request.NewPassword,
                 cancellationToken
             );

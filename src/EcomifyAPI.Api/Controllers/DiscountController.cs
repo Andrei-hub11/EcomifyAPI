@@ -29,6 +29,7 @@ public class DiscountController : ControllerBase
     /// <response code="200">Returns the list of discounts</response>
     /// <response code="400">If the request is invalid</response>
     /// <response code="401">If the user is not authorized</response>
+    /// <response code="403">If the user is not authorized to access the resource</response>
     [Authorize(Policy = "Admin")]
     [HttpGet]
     public async Task<IActionResult> GetDiscounts([FromQuery] DiscountFilterRequestDTO request, CancellationToken cancellationToken = default)
@@ -48,6 +49,8 @@ public class DiscountController : ControllerBase
     /// <param name="cancellationToken">The cancellation token</param>
     /// <returns>A <see cref="DiscountResponseDTO"/> representing the discount</returns>
     /// <response code="200">Returns the discount</response>
+    /// <response code="401">If the user is not authorized</response>
+    /// <response code="403">If the user is not authorized to access the resource</response>
     /// <response code="404">If the discount is not found</response>
     [Authorize(Policy = "Admin")]
     [HttpGet("{id}")]
@@ -69,6 +72,7 @@ public class DiscountController : ControllerBase
     /// <returns>A <see cref="bool"/> representing the result of the operation</returns>
     /// <response code="200">Returns the result of the operation</response>
     /// <response code="400">If the request is invalid</response>
+    /// <response code="403">If the user is not authorized to access the resource</response>
     /// <response code="404">If the category is not found</response>
     /// <response code="422">Validation errors</response>
     [Authorize(Policy = "Admin")]
@@ -91,6 +95,7 @@ public class DiscountController : ControllerBase
     /// <returns>A <see cref="bool"/> representing the result of the operation</returns>
     /// <response code="200">Returns the result of the operation</response>
     /// <response code="401">If the user is not authorized</response>
+    /// <response code="403">If the user is not authorized to access the resource</response>
     /// <response code="404">If the discount is not found</response>
     [Authorize(Policy = "Admin")]
     [HttpPut("{id}/deactivate")]
@@ -112,6 +117,7 @@ public class DiscountController : ControllerBase
     /// <returns>A <see cref="bool"/> representing the result of the operation</returns>
     /// <response code="200">Returns the result of the operation</response>
     /// <response code="401">If the user is not authorized</response>
+    /// <response code="403">If the user is not authorized to access the resource</response>
     /// <response code="404">If the discount is not found</response>
     [Authorize(Policy = "Admin")]
     [HttpDelete("{id}")]

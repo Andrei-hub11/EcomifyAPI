@@ -24,6 +24,9 @@ public class PaymentController : ControllerBase
     /// <param name="request">The payment filter request</param>
     /// <param name="cancellationToken">The cancellation token</param>
     /// <returns>A <see cref="PaginatedResponseDTO{PaymentResponseDTO}"/> representing the payments</returns>
+    /// <response code="200">The payments were retrieved successfully</response>
+    /// <response code="401">If the user is not authenticated</response>
+    /// <response code="403">If the user is not authorized to access the resource</response>
     [Authorize(Policy = "Admin")]
     [HttpGet]
     public async Task<IActionResult> GetPayments([FromQuery] PaymentFilterRequestDTO request, CancellationToken cancellationToken = default)
@@ -44,6 +47,7 @@ public class PaymentController : ControllerBase
     /// <returns>A <see cref="PaymentResponseDTO"/> representing the payment</returns>
     /// <response code="200">The payment was retrieved successfully</response>
     /// <response code="401">If the user is not authenticated</response>
+    /// <response code="403">If the user is not authorized to access the resource</response>
     /// <response code="404">If the payment is not found</response>
     [Authorize(Policy = "Admin")]
     [HttpGet("{transactionId}/details")]
@@ -65,10 +69,11 @@ public class PaymentController : ControllerBase
     /// <returns>A <see cref="PaymentResponseDTO"/> representing the payment</returns>
     /// <response code="200">The payment was retrieved successfully</response>
     /// <response code="401">If the user is not authenticated</response>
+    /// <response code="403">If the user is not authorized to access the resource</response>
     /// <response code="404">If the payment is not found</response>
     [Authorize]
     [HttpGet("{id}/user")]
-    public async Task<IActionResult> GetPaymentsByCustomerId(Guid id, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetPaymentsByCustomerId(string id, CancellationToken cancellationToken = default)
     {
         var result = await _paymentService.GetPaymentsByCustomerIdAsync(id, cancellationToken);
 
@@ -89,6 +94,7 @@ public class PaymentController : ControllerBase
     /// <response code="200">The payment was processed successfully</response>
     /// <response code="400">The payment request is invalid</response>
     /// <response code="401">The user is not authenticated</response>
+    /// <response code="403">The user is not authorized to access the resource</response>
     /// <response code="404">The cart was not found</response>
     /// <response code="422">The payment request is unprocessable</response>
     /// <response code="422">The order request is unprocessable</response>
@@ -113,6 +119,7 @@ public class PaymentController : ControllerBase
     /// <response code="200">The payment was refunded successfully</response>
     /// <response code="400">The payment request is invalid</response>
     /// <response code="401">The user is not authenticated</response>
+    /// <response code="403">The user is not authorized to access the resource</response>
     /// <response code="404">The payment is not found</response>
     [Authorize(Policy = "Admin")]
     [HttpPost("{transactionId}/refund")]
@@ -135,6 +142,7 @@ public class PaymentController : ControllerBase
     /// <response code="200">The payment was cancelled successfully</response>
     /// <response code="400">The payment request is invalid</response>
     /// <response code="401">The user is not authenticated</response>
+    /// <response code="403">The user is not authorized to access the resource</response>
     /// <response code="404">The payment is not found</response>
     [Authorize(Policy = "Admin")]
     [HttpPost("{transactionId}/cancel")]

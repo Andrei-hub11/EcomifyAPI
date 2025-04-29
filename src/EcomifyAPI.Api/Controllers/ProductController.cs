@@ -67,6 +67,7 @@ public class ProductController : ControllerBase
     /// </returns>
     /// <response code="200">Returns the list of products with low stock when found successfully.</response>
     /// <response code="401">Returns the error if the user is not authenticated.</response>
+    /// <response code="403">Returns the error if the user is not authorized to access the resource.</response>
     /// <response code="422">Returns the validation errors if the request is not valid.</response>
     [Authorize(Policy = "Admin")]
     [HttpGet("low-stock")]
@@ -107,6 +108,7 @@ public class ProductController : ControllerBase
     /// </returns>
     /// <response code="200">Returns true if the product was created successfully.</response>
     /// <response code="401">Returns the error if the user is not authenticated.</response>
+    /// <response code="403">Returns the error if the user is not authorized to access the resource.</response>
     /// <response code="422">Returns the validation errors if the product is not valid.</response>
     [Authorize(Policy = "Admin")]
     [HttpPost]
@@ -129,6 +131,7 @@ public class ProductController : ControllerBase
     /// </returns>
     /// <response code="200">Indicates that the category was created successfully.</response>
     /// <response code="401">Returns the error if the user is not authenticated.</response>
+    /// <response code="403">Returns the error if the user is not authorized to access the resource.</response>
     /// <response code="422">Returns the validation errors if the category is not valid.</response>
     [Authorize(Policy = "Admin")]
     [HttpPost("categories")]
@@ -152,6 +155,7 @@ public class ProductController : ControllerBase
     /// </returns>
     /// <response code="200">Indicates that the product was updated successfully.</response>
     /// <response code="401">Returns the error if the user is not authenticated.</response>
+    /// <response code="403">Returns the error if the user is not authorized to access the resource.</response>
     /// <response code="404">Returns the error if the product was not found.</response>
     /// <response code="422">Returns the validation errors if the product is not valid.</response>
     [Authorize(Policy = "Admin")]
@@ -175,6 +179,7 @@ public class ProductController : ControllerBase
     /// </returns>
     /// <response code="200">Indicates that the product was deleted successfully.</response>
     /// <response code="401">Returns the error if the user is not authenticated.</response>
+    /// <response code="403">Returns the error if the user is not authorized to access the resource.</response>
     /// <response code="404">Returns the error if the product was not found.</response>
     [Authorize(Policy = "Admin")]
     [HttpDelete("{id}")]

@@ -6,7 +6,7 @@ CREATE TABLE orders (
     total_with_discount DECIMAL(18,2) NOT NULL DEFAULT 0,
     currency_code VARCHAR(3) NOT NULL,
     order_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5),
+    status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5)),
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMP WITHOUT TIME ZONE,
     shipping_street VARCHAR(255) NOT NULL,

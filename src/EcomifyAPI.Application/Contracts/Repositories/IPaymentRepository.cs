@@ -11,7 +11,7 @@ public interface IPaymentRepository : IRepository
     CancellationToken cancellationToken = default);
     Task<PaymentRecordMapping?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<PaymentRecordMapping?> GetByTransactionIdAsync(Guid transactionId, CancellationToken cancellationToken = default);
-    Task<IEnumerable<PaymentRecordMapping>> GetPaymentsByCustomerIdAsync(Guid customerId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<PaymentRecordMapping>> GetPaymentsByCustomerIdAsync(string customerId, CancellationToken cancellationToken = default);
     Task<Guid> CreateAsync(PaymentRecord paymentRecord, CancellationToken cancellationToken = default);
     Task CreateStatusHistoryAsync(Guid paymentId, PaymentStatusChange statusChange, CancellationToken cancellationToken = default);
     Task UpdateAsync(PaymentRecord paymentRecord, CancellationToken cancellationToken = default);

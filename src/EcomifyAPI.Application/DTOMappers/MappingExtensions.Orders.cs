@@ -140,25 +140,6 @@ public static class MappingExtensionsOrders
         return [.. mappings.Select(m => m.ToDTO())];
     }
 
-    public static UpdateOrderRequestDTO ToUpdateOrderRequestDTO(this Order order)
-    {
-        return new UpdateOrderRequestDTO(
-            order.Id,
-            order.Status.ToOrderStatusDTO(),
-            order.ShippingAddress.ToAddressRequestDTO(),
-            order.BillingAddress.ToAddressRequestDTO(),
-            [.. order.OrderItems.Select(item =>
-            new OrderItemDTO(
-                item.Id,
-                item.ProductId,
-                string.Empty, // ProductName not available in domain entity
-                item.Quantity,
-                new MoneyDTO(item.UnitPrice.Code, item.UnitPrice.Amount),
-                item.TotalPrice.Amount))],
-            []
-        );
-    }
-
     public static OrderResponseDTO ToResponseDTO(this OrderMapping order)
     {
         return new OrderResponseDTO(
@@ -173,6 +154,16 @@ public static class MappingExtensionsOrders
             order.ShippingAddress.ToAddressDTO(),
             order.BillingAddress.ToAddressDTO(),
             order.Items.ToOrderItemDTO()
+        );
+    }
+
+    public static PaginatedResponseDTO<OrderResponseDTO> ToResponseDTO(this IEnumerable<OrderMapping> orders, int pageNumber, int pageSize, long totalCount)
+    {
+        return new PaginatedResponseDTO<OrderResponseDTO>(
+            [.. orders.Select(order => order.ToResponseDTO())],
+            pageSize,
+            pageNumber,
+            totalCount
         );
     }
 

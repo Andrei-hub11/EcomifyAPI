@@ -78,7 +78,7 @@ CancellationToken cancellationToken = default)
         return Result.Ok(payment.ToDTO());
     }
 
-    public async Task<Result<IReadOnlyList<PaymentResponseDTO>>> GetPaymentsByCustomerIdAsync(Guid customerId, CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<PaymentResponseDTO>>> GetPaymentsByCustomerIdAsync(string customerId, CancellationToken cancellationToken = default)
     {
         var payments = await _paymentRepository.GetPaymentsByCustomerIdAsync(customerId, cancellationToken);
 
