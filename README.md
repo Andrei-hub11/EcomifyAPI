@@ -1,7 +1,3 @@
-# Ecomify API
-
-A scalable, secure e-commerce backend API built with .NET 8 and Clean Architecture principles.
-
 ## Project Overview
 
 Ecomify API is a conceptual e-commerce solution developed as a personal project to explore modern software architecture and .NET development practices. While not intended for production use, it showcases key features of scalable, secure, and maintainable web applications.
