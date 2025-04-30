@@ -27,7 +27,7 @@ internal class FixedAmountDiscountStrategy : IDiscountStrategyResolver
     }
 
     public async Task<Result<decimal>> ApplyDiscountAsync(decimal orderAmount, ApplyDiscountRequestDTO request,
-    CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         var validationErrors = DiscountDTOValidation.Validate(
             request.CouponCode,
@@ -48,15 +48,21 @@ internal class FixedAmountDiscountStrategy : IDiscountStrategyResolver
             return Result.Fail(DiscountErrorFactory.DiscountNotFoundById(request.DiscountId));
         }
 
-        var fixedAmount = existingDiscount.FixedAmount;
+        decimal discountAmount = 0;
 
-        // Ensure the discount doesn't exceed the order amount
-        if (fixedAmount > orderAmount)
+        if (request.DiscountType == DiscountTypeEnum.Percentage)
         {
-            fixedAmount = orderAmount;
+            discountAmount = (orderAmount * request.Percentage ?? 0) / 100;
         }
 
-        return fixedAmount;
+        if (discountAmount > orderAmount)
+        {
+            discountAmount = orderAmount;
+        }
+
+        var finalAmount = orderAmount - discountAmount;
+
+        return finalAmount;
     }
 
     public async Task<Result<decimal>> CalculateTotalDiscountAsync(

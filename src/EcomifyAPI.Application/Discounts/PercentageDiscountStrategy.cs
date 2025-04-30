@@ -141,9 +141,9 @@ internal class PercentageDiscountStrategy : IDiscountStrategyResolver
     }
 
     public async Task<Result<decimal>> CalculateTotalDiscountAsync(
-    decimal cartAmount,
-    HashSet<Guid> discountIds,
-    CancellationToken cancellationToken = default)
+     decimal cartAmount,
+     HashSet<Guid> discountIds,
+     CancellationToken cancellationToken = default)
     {
         try
         {
@@ -156,66 +156,60 @@ internal class PercentageDiscountStrategy : IDiscountStrategyResolver
                 _userContext.UserId,
                 DateTime.UtcNow.AddDays(-7));
 
-            var count = recentDiscounts.Count();
-
-            if (count > 8)
+            if (recentDiscounts.Count() > 8)
             {
                 return Result.Fail("Customer has received too many discounts recently");
             }
 
             var totalDiscount = 0m;
+            var userUsages = await _discountRepository.GetUserUsagesAsync(_userContext.UserId, cancellationToken);
 
-            foreach (var discountId in discountIds.Distinct())
+            foreach (var discountId in discountIds)
             {
-                var existingDiscount = await _discountRepository.GetDiscountByIdAsync(discountId, cancellationToken);
+                var discountData = await _discountRepository.GetDiscountByIdAsync(discountId, cancellationToken);
 
-                if (existingDiscount is null)
-                {
+                if (discountData is null)
                     return Result.Fail(DiscountErrorFactory.DiscountNotFoundById(discountId));
-                }
 
-                var coupon = Discount.From(
-                    existingDiscount.Id,
-                    existingDiscount.Code,
-                    (DiscountType)existingDiscount.DiscountType,
-                    existingDiscount.FixedAmount,
-                    existingDiscount.Percentage,
-                    existingDiscount.MaxUses,
-                    existingDiscount.Uses,
-                    existingDiscount.MinOrderAmount,
-                    existingDiscount.MaxUsesPerUser,
-                    existingDiscount.ValidFrom,
-                    existingDiscount.ValidTo,
-                    existingDiscount.IsActive,
-                    existingDiscount.AutoApply,
-                    existingDiscount.CreatedAt
+                var couponResult = Discount.From(
+                    discountData.Id,
+                    discountData.Code,
+                    (DiscountType)discountData.DiscountType,
+                    discountData.FixedAmount,
+                    discountData.Percentage,
+                    discountData.MaxUses,
+                    discountData.Uses,
+                    discountData.MinOrderAmount,
+                    discountData.MaxUsesPerUser,
+                    discountData.ValidFrom,
+                    discountData.ValidTo,
+                    discountData.IsActive,
+                    discountData.AutoApply,
+                    discountData.CreatedAt
                 );
 
-                if (coupon.IsFailure)
+                if (couponResult.IsFailure)
                 {
-                    return Result.Fail(coupon.Errors);
+                    return Result.Fail(couponResult.Errors);
                 }
 
-                if (existingDiscount.MinOrderAmount > cartAmount)
+                var coupon = couponResult.Value;
+
+                if (discountData.MinOrderAmount > cartAmount)
                 {
-                    return Result.Fail(DiscountErrorFactory.MinimumOrderAmountNotReached(existingDiscount.MinOrderAmount));
+                    return Result.Fail(DiscountErrorFactory.MinimumOrderAmountNotReached(discountData.MinOrderAmount));
                 }
 
-                var userUsages = await _discountRepository.GetUserUsagesAsync(_userContext.UserId, cancellationToken);
-
-                if (!coupon.Value.IsValidForUse(cartAmount, userUsages))
+                if (!coupon.IsValidForUse(cartAmount, userUsages))
                 {
-                    return Result.Fail(DiscountErrorFactory.DiscountNotValidForUse(existingDiscount.Id));
+                    return Result.Fail(DiscountErrorFactory.DiscountNotValidForUse(discountData.Id));
                 }
 
-                var discountValue = existingDiscount.FixedAmount;
+                var percentage = discountData.Percentage ?? 0m;
+                var calculatedDiscount = Math.Round(cartAmount * (percentage / 100), 2);
 
-                if (discountValue > (cartAmount - totalDiscount))
-                {
-                    discountValue = cartAmount - totalDiscount;
-                }
-
-                totalDiscount += discountValue ?? 0;
+                var remainingAmount = cartAmount - totalDiscount;
+                totalDiscount += Math.Min(calculatedDiscount, remainingAmount);
 
                 if (totalDiscount >= cartAmount)
                 {
