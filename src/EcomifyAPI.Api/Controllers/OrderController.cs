@@ -21,8 +21,10 @@ public class OrderController : ControllerBase
     }
 
     /// <summary>
-    /// Retrieves all orders.
+    /// Retrieves all orders for a specific user.
     /// </summary>
+    /// <param name="userId">The user ID of the orders to retrieve.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>
     /// A list of <see cref="OrderResponseDTO"/> containing the order details.
     /// </returns>
@@ -30,10 +32,10 @@ public class OrderController : ControllerBase
     /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="403">Returned when the user is not authorized to access the resource.</response>
     [Authorize]
-    [HttpGet]
-    public async Task<IActionResult> GetOrders()
+    [HttpGet("{userId}/user")]
+    public async Task<IActionResult> GetOrders(string userId, CancellationToken cancellationToken = default)
     {
-        var result = await _orderService.GetAsync();
+        var result = await _orderService.GetByUserIdAsync(userId, cancellationToken);
 
         return result.Match(
             onSuccess: (orders) => Ok(orders),
@@ -75,7 +77,7 @@ public class OrderController : ControllerBase
     /// <response code="401">Returned when the user is not authenticated.</response>
     /// <response code="403">Returned when the user is not authorized to access the resource.</response>
     /// <response code="404">Returned when no order with the specified ID exists.</response>
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpGet("{id}")]
     public async Task<IActionResult> GetOrder(Guid id)
     {
@@ -133,26 +135,26 @@ public class OrderController : ControllerBase
         );
     }
 
-    /// <summary>
-    /// Deletes an order by its unique identifier.
-    /// </summary>
-    /// <param name="id">The unique identifier of the order.</param>
-    /// <returns>
-    /// A boolean value indicating whether the order was deleted successfully.
-    /// </returns>
-    /// <response code="200">Returns true if the order was deleted successfully.</response>
-    /// <response code="401">Returned when the user is not authenticated.</response>
-    /// <response code="403">Returned when the user is not authorized to access the resource.</response>
-    /// <response code="404">Returned when no order with the specified ID exists.</response>
-    [Authorize(Roles = "Admin")]
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteOrder(Guid id)
-    {
-        var result = await _orderService.DeleteOrderAsync(id);
+    /*     /// <summary>
+        /// Deletes an order by its unique identifier.
+        /// </summary>
+        /// <param name="id">The unique identifier of the order.</param>
+        /// <returns>
+        /// A boolean value indicating whether the order was deleted successfully.
+        /// </returns>
+        /// <response code="200">Returns true if the order was deleted successfully.</response>
+        /// <response code="401">Returned when the user is not authenticated.</response>
+        /// <response code="403">Returned when the user is not authorized to access the resource.</response>
+        /// <response code="404">Returned when no order with the specified ID exists.</response>
+        [Authorize(Roles = "Admin")]
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteOrder(Guid id)
+        {
+            var result = await _orderService.DeleteOrderAsync(id);
 
-        return result.Match(
-            onSuccess: (isDeleted) => Ok(isDeleted),
-            onFailure: (errors) => errors.ToProblemDetailsResult()
-        );
-    }
+            return result.Match(
+                onSuccess: (isDeleted) => Ok(isDeleted),
+                onFailure: (errors) => errors.ToProblemDetailsResult()
+            );
+        } */
 }

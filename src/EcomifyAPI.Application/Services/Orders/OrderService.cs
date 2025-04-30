@@ -47,11 +47,11 @@ public sealed class OrderService : IOrderService
         _logger = logger;
     }
 
-    public async Task<Result<IReadOnlyList<OrderResponseDTO>>> GetAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<OrderResponseDTO>>> GetByUserIdAsync(string userId, CancellationToken cancellationToken = default)
     {
         try
         {
-            var orders = await _orderRepository.GetAsync(cancellationToken);
+            var orders = await _orderRepository.GetByUserIdAsync(userId, cancellationToken);
 
             return Result.Ok(orders.ToResponseDTO());
         }

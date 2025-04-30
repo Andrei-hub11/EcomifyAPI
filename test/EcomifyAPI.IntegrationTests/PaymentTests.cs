@@ -239,6 +239,8 @@ public class PaymentTests : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         payments.ShouldNotBeNull();
         payments.Count.ShouldBeGreaterThanOrEqualTo(1);
+        payments[0].StatusHistory.ShouldNotBeNull();
+        payments[0].StatusHistory.Count.ShouldBeGreaterThanOrEqualTo(1);
     }
 
     [Fact]

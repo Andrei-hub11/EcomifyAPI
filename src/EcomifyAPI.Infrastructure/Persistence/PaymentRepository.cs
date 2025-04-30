@@ -261,10 +261,20 @@ public sealed class PaymentRepository : IPaymentRepository
             ORDER BY p.processed_at DESC;
         ";
 
-        var payments = await Connection.QueryAsync<PaymentRecordMapping>(
+        var payments = await Connection.QueryAsync<PaymentRecordMapping, string, PaymentRecordMapping>(
             new CommandDefinition(query,
             new { CustomerId = customerId },
-            cancellationToken: cancellationToken, transaction: Transaction)
+            cancellationToken: cancellationToken, transaction: Transaction),
+            (payment, historyJson) =>
+            {
+                payment.StatusHistory = string.IsNullOrEmpty(historyJson)
+                    ? []
+                    : JsonConvert.DeserializeObject<List<PaymentRecordHistoryMapping>>(historyJson)
+                    ?? throw new InvalidOperationException("Failed to deserialize status history");
+
+                return payment;
+            },
+            splitOn: "status_history"
         );
 
         return [.. payments];

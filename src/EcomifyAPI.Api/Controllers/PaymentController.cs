@@ -62,15 +62,14 @@ public class PaymentController : ControllerBase
     }
 
     /// <summary>
-    /// Gets a payment by id
+    /// Gets payments by customer id
     /// </summary>
-    /// <param name="id">The id of the payment to get</param>
+    /// <param name="id">The id of the customer to get</param>
     /// <param name="cancellationToken">The cancellation token</param>
-    /// <returns>A <see cref="PaymentResponseDTO"/> representing the payment</returns>
-    /// <response code="200">The payment was retrieved successfully</response>
+    /// <returns>A <see cref="PaymentResponseDTO"/> representing the payments</returns>
+    /// <response code="200">The payments were retrieved successfully</response>
     /// <response code="401">If the user is not authenticated</response>
     /// <response code="403">If the user is not authorized to access the resource</response>
-    /// <response code="404">If the payment is not found</response>
     [Authorize]
     [HttpGet("{id}/user")]
     public async Task<IActionResult> GetPaymentsByCustomerId(string id, CancellationToken cancellationToken = default)
@@ -78,7 +77,7 @@ public class PaymentController : ControllerBase
         var result = await _paymentService.GetPaymentsByCustomerIdAsync(id, cancellationToken);
 
         return result.Match(
-            onSuccess: (payment) => Ok(payment),
+            onSuccess: (payments) => Ok(payments),
             onFailure: (errors) => errors.ToProblemDetailsResult()
         );
     }

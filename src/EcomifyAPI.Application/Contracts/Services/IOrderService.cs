@@ -7,7 +7,7 @@ namespace EcomifyAPI.Application.Contracts.Services;
 
 public interface IOrderService
 {
-    Task<Result<IReadOnlyList<OrderResponseDTO>>> GetAsync(CancellationToken cancellationToken = default);
+    Task<Result<IReadOnlyList<OrderResponseDTO>>> GetByUserIdAsync(string userId, CancellationToken cancellationToken = default);
     Task<Result<OrderResponseDTO>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result<PaginatedResponseDTO<OrderResponseDTO>>> GetFilteredAsync(OrderFilterRequestDTO filter, CancellationToken cancellationToken = default);
     Task<Result<OrderResponseDTO>> CreateOrderAsync(CreateOrderRequestDTO request, CancellationToken cancellationToken = default);
