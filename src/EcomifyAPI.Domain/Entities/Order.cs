@@ -18,6 +18,7 @@ public sealed class Order
     public OrderStatusEnum Status { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
+    public DateTime? ShippedAt { get; private set; }
     public Address ShippingAddress { get; private set; }
     public Address BillingAddress { get; private set; }
 
@@ -35,7 +36,8 @@ public sealed class Order
         Address billingAddress,
         List<OrderItem> orderItems,
         decimal discountAmount = 0,
-        Money? totalWithDiscount = null)
+        Money? totalWithDiscount = null,
+        DateTime? shippedAt = null)
     {
         Id = id;
         UserId = userId;
@@ -46,6 +48,7 @@ public sealed class Order
         ShippingAddress = shippingAddress;
         BillingAddress = billingAddress;
         DiscountAmount = discountAmount;
+        ShippedAt = shippedAt;
         _items.AddRange(orderItems);
 
         if (totalWithDiscount is not null)
@@ -99,7 +102,9 @@ public sealed class Order
         shippingAddress,
         billingAddress,
         [],
-        discountAmount);
+        discountAmount,
+        null,
+        null);
     }
 
     public static Result<Order> From(
@@ -113,9 +118,10 @@ public sealed class Order
         Address billingAddress,
         List<OrderItem> items,
         decimal discountAmount = 0,
-        Money? totalWithDiscount = null)
+        Money? totalWithDiscount = null,
+        DateTime? shippedAt = null)
     {
-        var errors = ValidateOrder(userId, orderDate, status, id);
+        var errors = ValidateOrder(userId, orderDate, status, id, shippedAt);
 
         if (errors.Count != 0)
         {
@@ -133,14 +139,16 @@ public sealed class Order
             billingAddress,
             items,
             discountAmount,
-            totalWithDiscount);
+            totalWithDiscount,
+            shippedAt);
     }
 
     private static ReadOnlyCollection<ValidationError> ValidateOrder(
         string userId,
         DateTime orderDate,
         OrderStatusEnum status,
-        Guid? id = null
+        Guid? id = null,
+        DateTime? shippedAt = null
         )
     {
         var errors = new List<ValidationError>();
@@ -163,6 +171,11 @@ public sealed class Order
         if (id is null && status != OrderStatusEnum.Confirmed)
         {
             errors.Add(ValidationError.Create("Status must be confirmed", "ERR_STATUS_MUST_BE_CONFIRMED", "Status"));
+        }
+
+        if (status == OrderStatusEnum.Shipped && shippedAt is null)
+        {
+            errors.Add(ValidationError.Create("ShippedAt is required", "ERR_SHIPPED_AT_REQUIRED", "ShippedAt"));
         }
 
         return errors.AsReadOnly();
@@ -265,6 +278,7 @@ public sealed class Order
         }
 
         UpdateStatus(OrderStatusEnum.Shipped);
+        ShippedAt = DateTime.UtcNow;
     }
 
     public void CompleteOrder()

@@ -14,6 +14,7 @@ public class OrderMapping
     public string CurrencyCode { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime CompletedAt { get; set; }
+    public DateTime? ShippedAt { get; set; }
     public ShippingAddressMapping ShippingAddress { get; set; } = new();
     public BillingAddressMapping BillingAddress { get; set; } = new();
     public List<OrderItemMapping> Items { get; set; } = [];

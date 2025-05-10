@@ -13,6 +13,7 @@ public class OrderBuilder
     private OrderStatusEnum _status = OrderStatusEnum.Confirmed;
     private readonly DateTime _createdAt = DateTime.UtcNow;
     private readonly DateTime? _completedAt = null;
+    private DateTime? _shippedAt = null;
     private Address _shippingAddress;
     private Address _billingAddress;
     private decimal _discountAmount = 0;
@@ -56,6 +57,10 @@ public class OrderBuilder
     public OrderBuilder WithStatus(OrderStatusEnum status)
     {
         _status = status;
+        if (status == OrderStatusEnum.Shipped)
+        {
+            _shippedAt = DateTime.UtcNow;
+        }
         return this;
     }
 
@@ -86,6 +91,12 @@ public class OrderBuilder
     public OrderBuilder WithCurrencyCode(string currencyCode)
     {
         _currencyCode = currencyCode;
+        return this;
+    }
+
+    public OrderBuilder WithShippedAt(DateTime? shippedAt)
+    {
+        _shippedAt = shippedAt;
         return this;
     }
 
@@ -159,7 +170,8 @@ public class OrderBuilder
             order.Value.BillingAddress,
             [.. order.Value.OrderItems],
             order.Value.DiscountAmount,
-            order.Value.TotalWithDiscount
+            order.Value.TotalWithDiscount,
+           _shippedAt
         );
 
         return newOrder;

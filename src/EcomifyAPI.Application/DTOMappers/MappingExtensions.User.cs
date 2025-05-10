@@ -43,7 +43,7 @@ public static class MappingExtensionsUser
         );
     }
 
-    public static IReadOnlyList<UserResponseDTO> ToReponseDTO(this IEnumerable<UserMapping> users)
+    public static IReadOnlyList<UserResponseDTO> ToResponseDTO(this IEnumerable<UserMapping> users)
     {
         return [.. users.Select(user => user.ToResponseDTO())];
     }

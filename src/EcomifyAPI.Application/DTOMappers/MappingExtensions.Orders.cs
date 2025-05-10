@@ -1,7 +1,6 @@
 using EcomifyAPI.Contracts.DapperModels;
 using EcomifyAPI.Contracts.Enums;
 using EcomifyAPI.Contracts.Models;
-using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
 using EcomifyAPI.Domain.Common;
 using EcomifyAPI.Domain.Entities;
@@ -65,17 +64,17 @@ public static class MappingExtensionsOrders
             address.BillingComplement);
     }
 
-    private static AddressRequestDTO ToAddressRequestDTO(this Address address)
+    public static AddressResponseDTO ToAddressDTO(this Address address)
     {
-        return new AddressRequestDTO(
+        return new AddressResponseDTO(
+            address.Id,
             address.Street,
             address.Number,
             address.City,
             address.State,
             address.ZipCode,
             address.Country,
-            address.Complement
-            );
+            address.Complement);
     }
 
     private static List<OrderItem> ToOrderItem(this List<OrderItemMapping> items)
@@ -91,13 +90,13 @@ public static class MappingExtensionsOrders
     private static IReadOnlyList<OrderItemDTO> ToOrderItemDTO(this List<OrderItemMapping> items)
     {
         return [.. items.Select(item =>
-        new OrderItemDTO(
-            item.ItemId,
-            item.ProductId,
-            item.ProductName,
-            item.Quantity,
-            new MoneyDTO(item.CurrencyCode, item.UnitPrice),
-            item.TotalPrice))];
+            new OrderItemDTO(
+                item.ItemId,
+                item.ProductId,
+                item.ProductName,
+                item.Quantity,
+                new MoneyDTO(item.CurrencyCode, item.UnitPrice),
+                item.TotalPrice))];
     }
 
     public static DiscountHistoryDTO ToDTO(this DiscountHistory discountHistory)
@@ -153,7 +152,8 @@ public static class MappingExtensionsOrders
             order.CurrencyCode,
             order.ShippingAddress.ToAddressDTO(),
             order.BillingAddress.ToAddressDTO(),
-            order.Items.ToOrderItemDTO()
+            order.Items.ToOrderItemDTO(),
+            order.ShippedAt
         );
     }
 
@@ -198,7 +198,9 @@ public static class MappingExtensionsOrders
                 order.BillingAddress.BillingCountry,
                 order.BillingAddress.BillingComplement),
             order.Items.ToOrderItem(),
-            order.DiscountAmount
+            order.DiscountAmount,
+            new Money(order.CurrencyCode, order.TotalWithDiscount),
+            order.ShippedAt
         );
 
         if (domain.IsFailure)

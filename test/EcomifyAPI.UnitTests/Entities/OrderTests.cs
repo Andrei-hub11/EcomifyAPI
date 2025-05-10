@@ -256,6 +256,38 @@ public class OrderTests
         order.TotalWithDiscount.Amount.ShouldBe(70);
     }
 
+    [Fact]
+    public void ShipOrder_ShouldSetShippedAtDate()
+    {
+        // Arrange
+        var order = _builder.Build().Value;
+
+        // Act
+        order!.ShipOrder();
+
+        // Assert
+        order.ShippedAt.ShouldNotBeNull();
+        order.ShippedAt.Value.Date.ShouldBe(DateTime.UtcNow.Date);
+        order.Status.ShouldBe(OrderStatusEnum.Shipped);
+    }
+
+    [Fact]
+    public void From_WithShippedAt_ShouldSetProperty()
+    {
+        // Arrange
+        var shippedAt = DateTime.UtcNow;
+
+        // Act
+        var result = _builder
+            .WithShippedAt(shippedAt)
+            .BuildFrom();
+
+        // Assert
+        result.IsFailure.ShouldBeFalse();
+        result.Value.ShouldNotBeNull();
+        result.Value.ShippedAt.ShouldBe(shippedAt);
+    }
+
     private static Product CreateSampleProduct()
     {
         var result = Product.Create(

@@ -6,13 +6,13 @@ services:
     environment:
       POSTGRES_DB: EcomifyAPI
       POSTGRES_USER: keycloak_user
-      POSTGRES_PASSWORD: K3ycl0ak_P0stgr3s_2025! # Senha mais forte para o Postgres
+      POSTGRES_PASSWORD: K3ycl0ak_P0stgr3s_2025!
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "keycloak_user"]
+      test: ["CMD", "pg_isready", "-U", "keycloak_user", "-d", "EcomifyAPI"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,20 +24,28 @@ services:
       KC_DB_URL_HOST: postgres
       KC_DB_URL_DATABASE: EcomifyAPI
       KC_DB_USERNAME: keycloak_user
-      KC_DB_PASSWORD: K3ycl0ak_P0stgr3s_2025! # Mesma senha do Postgres
-      KC_BOOTSTRAP_ADMIN: admin_user
-      KC_BOOTSTRAP_ADMIN_PASSWORD: Adm1n_K3ycl0ak_2025! # Senha forte para o admin do Keycloak
+      KC_DB_PASSWORD: K3ycl0ak_P0stgr3s_2025!
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin_user
+      KC_BOOTSTRAP_ADMIN_PASSWORD: Adm1n_K3ycl0ak_2025!
       KC_IMPORT: /opt/keycloak/data/import/realm-export.json
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: true
     volumes:
-      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json # Mapeia o arquivo local para o container
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
     ports:
       - "8080:8080"
+      - "9000:9000"
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     command:
       - "start-dev"
-      - "--import-realm" # Ativa a importação automática dos realms no diretório mapeado
+      - "--import-realm"
 
 volumes:
   postgres_data:

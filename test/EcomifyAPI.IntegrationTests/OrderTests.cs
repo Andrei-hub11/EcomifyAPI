@@ -353,6 +353,7 @@ public class OrderTests : IAsyncLifetime
         isUpdated.ShouldBeTrue();
         order.ShouldNotBeNull();
         order.Status.ShouldBe(OrderStatusDTO.Shipped);
+        order.ShippedAt.ShouldNotBeNull();
     }
 
     [Fact]

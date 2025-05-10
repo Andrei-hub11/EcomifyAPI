@@ -139,4 +139,25 @@ internal class EmailSender : IEmailSender
             .UsingTemplateFromFile(templatePath, orderDetails)
             .SendAsync();
     }
+
+    public async Task SendDeliveryConfirmationEmail(string toAddress, DeliveryConfirmationEmail email, CancellationToken cancellationToken = default)
+    {
+        if (_environment.IsEnvironment("INTEGRATION_TEST"))
+        {
+            return;
+        }
+
+        string templatePath = Path.Combine(_srcDirectory, "EcomifyAPI.Infrastructure", "Email", "Templates", "DeliveryConfirmation.cshtml");
+
+        if (!File.Exists(templatePath))
+        {
+            throw new FileNotFoundException($"Template file not found at: {templatePath}");
+        }
+
+        await _fluentEmail
+            .To(toAddress)
+            .Subject("Delivery Confirmation")
+            .UsingTemplateFromFile(templatePath, email)
+            .SendAsync();
+    }
 }

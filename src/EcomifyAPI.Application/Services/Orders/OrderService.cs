@@ -1,5 +1,6 @@
 using EcomifyAPI.Application.Contracts.Data;
 using EcomifyAPI.Application.Contracts.Discounts;
+using EcomifyAPI.Application.Contracts.Email;
 using EcomifyAPI.Application.Contracts.Logging;
 using EcomifyAPI.Application.Contracts.Repositories;
 using EcomifyAPI.Application.Contracts.Services;
@@ -7,7 +8,9 @@ using EcomifyAPI.Application.DTOMappers;
 using EcomifyAPI.Common.Utils.Errors;
 using EcomifyAPI.Common.Utils.Result;
 using EcomifyAPI.Common.Utils.ResultError;
+using EcomifyAPI.Contracts.EmailModels;
 using EcomifyAPI.Contracts.Enums;
+using EcomifyAPI.Contracts.Models;
 using EcomifyAPI.Contracts.Request;
 using EcomifyAPI.Contracts.Response;
 using EcomifyAPI.Domain.Common;
@@ -25,6 +28,8 @@ public sealed class OrderService : IOrderService
     private readonly IAccountService _accountService;
     private readonly IDiscountService _discountService;
     private readonly ICartService _cartService;
+    private readonly IShippingService _shippingService;
+    private readonly IEmailSender _emailSender;
     private readonly IDiscountServiceFactory _discountServiceFactory;
     private readonly ILoggerHelper<OrderService> _logger;
 
@@ -34,6 +39,8 @@ public sealed class OrderService : IOrderService
         IAccountService accountService,
         IDiscountService discountService,
         ICartService cartService,
+        IShippingService shippingService,
+        IEmailSender emailSender,
         IDiscountServiceFactory discountServiceFactory,
         ILoggerHelper<OrderService> logger)
     {
@@ -43,6 +50,8 @@ public sealed class OrderService : IOrderService
         _accountService = accountService;
         _discountService = discountService;
         _cartService = cartService;
+        _shippingService = shippingService;
+        _emailSender = emailSender;
         _discountServiceFactory = discountServiceFactory;
         _logger = logger;
     }
@@ -354,6 +363,42 @@ public sealed class OrderService : IOrderService
 
             await _orderRepository.UpdateAsync(orderDomain, cancellationToken);
             await _unitOfWork.CommitAsync(cancellationToken);
+
+            var customer = await _accountService.GetByIdAsync(orderDomain.UserId, cancellationToken);
+
+            var shippingEstimate = await _shippingService.EstimateShippingAsync(new EstimateShippingRequestDTO(
+                orderDomain.ShippingAddress.ZipCode, orderDomain.ShippingAddress.City, orderDomain.ShippingAddress.State),
+                cancellationToken);
+
+            if (shippingEstimate.IsFailure)
+            {
+                return Result.Fail(shippingEstimate.Errors);
+            }
+
+            var shippingCost = shippingEstimate.Value.ShippingCost.Amount;
+            var estimatedDeliveryDate = DateTime.UtcNow.AddDays(shippingEstimate.Value.EstimatedDeliveryDays);
+
+            var orderTrackingUrl = $"https://ecomify.com/orders/{orderDomain.Id}";
+
+            var deliveryConfirmationEmail = new DeliveryConfirmationEmail(
+                customer.Value!.User.UserName,
+                orderDomain.Id,
+                orderDomain.OrderDate,
+                estimatedDeliveryDate,
+                customer.Value.User.UserName,
+                "Ecomify",
+                "1234567890",
+                orderDomain.TotalAmount.Code,
+                existingOrder.Items.Select(i =>
+                new OrderItemDTO(i.ItemId, i.ProductId, i.ProductName, i.Quantity, new MoneyDTO(i.CurrencyCode, i.UnitPrice), i.TotalPrice)).ToList(),
+                orderDomain.TotalWithDiscount.Amount,
+                shippingCost,
+                orderDomain.DiscountAmount,
+                orderDomain.TotalAmount.Amount + shippingCost,
+                orderDomain.ShippingAddress.ToAddressDTO()
+            );
+
+            await _emailSender.SendDeliveryConfirmationEmail(customer.Value.User.Email, deliveryConfirmationEmail, cancellationToken);
 
             return true;
         }

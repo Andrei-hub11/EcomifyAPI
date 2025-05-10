@@ -8,6 +8,7 @@ CREATE TABLE orders (
     order_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5)),
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+    shipped_at TIMESTAMP WITHOUT TIME ZONE,
     completed_at TIMESTAMP WITHOUT TIME ZONE,
     shipping_street VARCHAR(255) NOT NULL,
     shipping_number INT NOT NULL,

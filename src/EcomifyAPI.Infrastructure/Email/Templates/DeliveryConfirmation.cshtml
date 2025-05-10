@@ -1,0 +1,180 @@
+@using EcomifyAPI.Contracts.EmailModels
+@model DeliveryConfirmationEmail;
+@using System;
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Delivery Confirmation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #3498db;
+        }
+        .details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .delivery-info {
+            background-color: #edfbf3;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #2ecc71;
+        }
+        .order-items {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        .order-items th, .order-items td {
+            border-bottom: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .order-items th {
+            background-color: #f2f2f2;
+        }
+        .total-row {
+            font-weight: bold;
+        }
+        .address-info {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f0f7ff;
+            border-radius: 5px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #3498db;
+            color: white !important;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        .feedback-button {
+            display: inline-block;
+            background-color: #f39c12;
+            color: white !important;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        .success-icon {
+            font-size: 48px;
+            color: #2ecc71;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .footer {
+            font-size: 12px;
+            color: #777;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Your order has been delivered!</h1>
+    
+    <div class="success-icon">✓</div>
+    
+    <p>Hello @Model.CustomerName,</p>
+    <p>We have good news! Your order <strong>#@Model.OrderId</strong> has been delivered on @Model.DeliveryDate.ToString("dd/MM/yyyy às HH:mm").</p>
+    
+    <div class="delivery-info">
+        <h2>Delivery Details</h2>
+        <p><strong>Delivery Date:</strong> @Model.DeliveryDate.ToString("dd/MM/yyyy HH:mm")</p>
+        <p><strong>Received by:</strong> @Model.RecipientName</p>
+        <p><strong>Delivery Company:</strong> @Model.DeliveryCompany</p>
+        @if (!string.IsNullOrEmpty(Model.TrackingNumber))
+        {
+            <p><strong>Tracking Number:</strong> @Model.TrackingNumber</p>
+        }
+    </div>
+    
+    <div class="details">
+        <p><strong>Order:</strong> #@Model.OrderId</p>
+        <p><strong>Order Date:</strong> @Model.OrderDate.ToString("dd/MM/yyyy HH:mm")</p>
+    </div>
+    
+    <h2>Delivered Items</h2>
+    <table class="order-items">
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.OrderItems)
+            {
+                <tr>
+                    <td>@item.ProductName</td>
+                    <td>@item.Quantity</td>
+                    <td>@Model.Currency @item.UnitPrice.Amount.ToString("N2")</td>
+                    <td>@Model.Currency @item.Subtotal.ToString("N2")</td>
+                </tr>
+            }
+            <tr>
+                <td colspan="3" style="text-align: right;"><strong>Subtotal:</strong></td>
+                <td>@Model.Currency @Model.Subtotal.ToString("N2")</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: right;"><strong>Frete:</strong></td>
+                <td>@Model.Currency @Model.ShippingCost.ToString("N2")</td>
+            </tr>
+            @if (Model.Discount > 0)
+            {
+                <tr>
+                    <td colspan="3" style="text-align: right;"><strong>Desconto:</strong></td>
+                    <td>-@Model.Currency @Model.Discount.ToString("N2")</td>
+                </tr>
+            }
+            <tr class="total-row">
+                <td colspan="3" style="text-align: right;"><strong>Total:</strong></td>
+                <td>@Model.Currency @Model.Total.ToString("N2")</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <div class="address-info">
+        <h2>Delivery Address</h2>
+        <p>
+           @Model.DeliveryAddress.Street, @Model.DeliveryAddress.Number<br>
+           @if (!string.IsNullOrEmpty(Model.DeliveryAddress.Complement))
+           {
+               @Model.DeliveryAddress.Complement<br>
+           }
+           @Model.DeliveryAddress.City, @Model.DeliveryAddress.State - @Model.DeliveryAddress.ZipCode<br>
+           @Model.DeliveryAddress.Country
+        </p>
+    </div>
+    
+    <p>We hope you are satisfied with your purchase! If you have any questions or problems with the products received, our support team is available to help you.</p>
+    
+    <p>Thank you for choosing Ecomify!</p>
+    
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>&copy; @DateTime.Now.Year Ecomify. All rights reserved.</p>
+    </div>
+</body>
+</html>

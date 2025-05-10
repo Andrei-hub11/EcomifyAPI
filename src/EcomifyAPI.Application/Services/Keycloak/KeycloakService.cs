@@ -53,7 +53,7 @@ public class KeycloakService : IKeycloakService
     {
         var users = await GetUsersAsync();
 
-        return users.ToReponseDTO();
+        return users.ToResponseDTO();
     }
 
     public async Task<Result<AuthKeycloakResponseDTO>> RegisterUserAync(

@@ -1,6 +1,6 @@
 ## Project Overview
 
-Ecomify API is a conceptual e-commerce solution developed as a personal project to explore modern software architecture and .NET development practices. While not intended for production use, it showcases key features of scalable, secure, and maintainable web applications.
+Ecomify API is a conceptual e-commerce solution developed as a personal project to explore modern software architecture and .NET development practices.
 
 ## Technology Stack
 
@@ -184,7 +184,9 @@ When running `docker-compose up -d`, Keycloak is automatically configured with t
 
 4. Navigate to the "Credentials" tab to view the client secret
 
-5. Copy the displayed client secret and update your `appsettings.json` with this value in multiple places:
+5. It may be empty or not look right the first time you see it, so click to generate a new client secret
+
+6. Copy the displayed client secret and update your `appsettings.json` with this value in multiple places:
    ```json
    "UserKeycloakAdmin": {
      // other settings...

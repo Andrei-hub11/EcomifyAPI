@@ -14,5 +14,6 @@ public sealed record OrderResponseDTO(
     string CurrencyCode,
     AddressResponseDTO ShippingAddress,
     AddressResponseDTO BillingAddress,
-    IReadOnlyList<OrderItemDTO> Items
+    IReadOnlyList<OrderItemDTO> Items,
+    DateTime? ShippedAt
     );

@@ -43,6 +43,9 @@ public class OrderRepository : IOrderRepository
             o.total_amount AS TotalAmount,
             o.discount_amount AS DiscountAmount,
             o.total_with_discount AS TotalWithDiscount,
+            o.created_at AS CreatedAt,
+            o.completed_at AS CompletedAt,
+            o.shipped_at AS ShippedAt,
             o.shipping_street AS ShippingStreet,
             o.shipping_number AS ShippingNumber,
             o.shipping_city AS ShippingCity,
@@ -84,16 +87,23 @@ public class OrderRepository : IOrderRepository
             o.total_amount,
             o.discount_amount,
             o.total_with_discount,
+            o.created_at,
+            o.completed_at,
+            o.shipped_at,
             o.shipping_street,
+            o.shipping_number,
             o.shipping_city,
             o.shipping_state,
             o.shipping_zip_code,
             o.shipping_country,
+            o.shipping_complement,
             o.billing_street,
+            o.billing_number,
             o.billing_city,
             o.billing_state,
             o.billing_zip_code,
-            o.billing_country
+            o.billing_country,
+            o.billing_complement
     ";
 
         var orders = await Connection.QueryAsync<OrderMapping>(
@@ -146,6 +156,9 @@ public class OrderRepository : IOrderRepository
             o.total_amount AS TotalAmount,
             o.discount_amount AS DiscountAmount,
             o.total_with_discount AS TotalWithDiscount,
+            o.created_at AS CreatedAt,
+            o.completed_at AS CompletedAt,
+            o.shipped_at AS ShippedAt,
             o.shipping_street AS ShippingStreet,
             o.shipping_number AS ShippingNumber,
             o.shipping_city AS ShippingCity,
@@ -188,16 +201,23 @@ public class OrderRepository : IOrderRepository
             o.total_amount,
             o.discount_amount,
             o.total_with_discount,
+            o.created_at,
+            o.completed_at,
+            o.shipped_at,
             o.shipping_street,
+            o.shipping_number,
             o.shipping_city,
             o.shipping_state,
             o.shipping_zip_code,
             o.shipping_country,
+            o.shipping_complement,
             o.billing_street,
+            o.billing_number,
             o.billing_city,
             o.billing_state,
             o.billing_zip_code,
-            o.billing_country
+            o.billing_country,
+            o.billing_complement
             ";
 
         var orders = await Connection.QueryAsync<OrderMapping>(
@@ -252,6 +272,9 @@ public class OrderRepository : IOrderRepository
             o.total_amount AS TotalAmount,
             o.discount_amount AS DiscountAmount,
             o.total_with_discount AS TotalWithDiscount,
+            o.created_at AS CreatedAt,
+            o.completed_at AS CompletedAt,
+            o.shipped_at AS ShippedAt,
             o.shipping_street AS ShippingStreet,
             o.shipping_number AS ShippingNumber,
             o.shipping_city AS ShippingCity,
@@ -294,16 +317,23 @@ public class OrderRepository : IOrderRepository
             o.total_amount,
             o.discount_amount,
             o.total_with_discount,
+            o.created_at,
+            o.completed_at,
+            o.shipped_at,
             o.shipping_street,
+            o.shipping_number,
             o.shipping_city,
             o.shipping_state,
             o.shipping_zip_code,
             o.shipping_country,
+            o.shipping_complement,
             o.billing_street,
+            o.billing_number,
             o.billing_city,
             o.billing_state,
             o.billing_zip_code,
-            o.billing_country
+            o.billing_country,
+            o.billing_complement
             ";
 
         var orders = await Connection.QueryAsync<OrderMapping>(
@@ -363,6 +393,9 @@ CancellationToken cancellationToken = default)
             o.total_amount AS TotalAmount,
             o.discount_amount AS DiscountAmount,
             o.total_with_discount AS TotalWithDiscount,
+            o.created_at AS CreatedAt,
+            o.completed_at AS CompletedAt,
+            o.shipped_at AS ShippedAt,
             o.shipping_street AS ShippingStreet,
             o.shipping_number AS ShippingNumber,
             o.shipping_city AS ShippingCity,
@@ -453,6 +486,9 @@ CancellationToken cancellationToken = default)
         o.total_amount,
         o.discount_amount,
         o.total_with_discount,
+        o.created_at,
+        o.completed_at,
+        o.shipped_at,
         o.shipping_street,
         o.shipping_number,
         o.shipping_city,
@@ -542,12 +578,12 @@ CancellationToken cancellationToken = default)
     {
         const string query = @"
             INSERT INTO orders (user_keycloak_id, total_amount, discount_amount, total_with_discount, currency_code, 
-            order_date, status, created_at, completed_at, 
+            order_date, status, created_at, completed_at, shipped_at,
             shipping_street, shipping_number, shipping_city, shipping_state, shipping_zip_code, 
             shipping_country, shipping_complement, billing_street, billing_number, billing_city, billing_state, 
             billing_zip_code, billing_country, billing_complement)
             VALUES (@UserId, @TotalAmount, @DiscountAmount, @TotalWithDiscount, @CurrencyCode, 
-            @OrderDate, @Status, @CreatedAt, @CompletedAt, 
+            @OrderDate, @Status, @CreatedAt, @CompletedAt, @ShippedAt,
             @ShippingStreet, @ShippingNumber, @ShippingCity, @ShippingState, @ShippingZipCode, 
             @ShippingCountry, @ShippingComplement, @BillingStreet, @BillingNumber, @BillingCity, @BillingState, 
             @BillingZipCode, @BillingCountry, @BillingComplement)
@@ -568,6 +604,7 @@ CancellationToken cancellationToken = default)
                     order.Status,
                     order.CreatedAt,
                     order.CompletedAt,
+                    ShippedAt = order.Status == OrderStatusEnum.Shipped ? DateTime.UtcNow : order.ShippedAt,
                     ShippingStreet = order.ShippingAddress.Street,
                     ShippingNumber = order.ShippingAddress.Number,
                     ShippingCity = order.ShippingAddress.City,
@@ -621,7 +658,8 @@ CancellationToken cancellationToken = default)
         const string query = @"
         UPDATE orders
         SET status = @Status,
-        completed_at = @CompletedAt
+        completed_at = @CompletedAt,
+        shipped_at = @ShippedAt
         WHERE id = @Id";
 
         await Connection.ExecuteAsync(
@@ -631,7 +669,8 @@ CancellationToken cancellationToken = default)
                 {
                     order.Id,
                     order.Status,
-                    CompletedAt = order.Status == OrderStatusEnum.Completed ? DateTime.UtcNow : order.CompletedAt
+                    CompletedAt = order.Status == OrderStatusEnum.Completed ? DateTime.UtcNow : order.CompletedAt,
+                    ShippedAt = order.Status == OrderStatusEnum.Shipped ? DateTime.UtcNow : order.ShippedAt
                 },
                 cancellationToken: cancellationToken,
                 transaction: Transaction
@@ -666,6 +705,9 @@ CancellationToken cancellationToken = default)
             o.total_amount AS TotalAmount,
             o.discount_amount AS DiscountAmount,
             o.total_with_discount AS TotalWithDiscount,
+            o.created_at AS CreatedAt,
+            o.completed_at AS CompletedAt,
+            o.shipped_at AS ShippedAt,
             o.shipping_street AS ShippingStreet,
             o.shipping_number AS ShippingNumber,
             o.shipping_city AS ShippingCity,
@@ -708,16 +750,21 @@ CancellationToken cancellationToken = default)
             o.total_amount,
             o.discount_amount,
             o.total_with_discount,
+            o.created_at,
+            o.completed_at,
+            o.shipped_at,
             o.shipping_street,
             o.shipping_city,
             o.shipping_state,
             o.shipping_zip_code,
             o.shipping_country,
+            o.shipping_complement,
             o.billing_street,
             o.billing_city,
             o.billing_state,
             o.billing_zip_code,
-            o.billing_country
+            o.billing_country,
+            o.billing_complement
         ORDER BY o.created_at DESC
         LIMIT 1";
 

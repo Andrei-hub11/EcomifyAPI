@@ -117,6 +117,7 @@ CREATE TABLE orders (
     status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5)),
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMP WITHOUT TIME ZONE,
+    shipped_at TIMESTAMP WITHOUT TIME ZONE,
     shipping_street VARCHAR(255) NOT NULL,
     shipping_number INT NOT NULL,
     shipping_city VARCHAR(100) NOT NULL,

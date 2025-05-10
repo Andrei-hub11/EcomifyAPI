@@ -129,6 +129,52 @@ CREATE TABLE cart_items (
     CONSTRAINT chk_cart_item_total_price CHECK (total_price = unit_price * quantity)
 );
 
+-- Orders
+CREATE TABLE orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_keycloak_id VARCHAR(36) NOT NULL,
+    total_amount DECIMAL(18,2) NOT NULL,
+    discount_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total_with_discount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    currency_code VARCHAR(3) NOT NULL,
+    order_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5)),
+    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+    shipped_at TIMESTAMP WITHOUT TIME ZONE,
+    completed_at TIMESTAMP WITHOUT TIME ZONE,
+    shipping_street VARCHAR(255) NOT NULL,
+    shipping_number INT NOT NULL,
+    shipping_city VARCHAR(100) NOT NULL,
+    shipping_state VARCHAR(100) NOT NULL,
+    shipping_zip_code VARCHAR(20) NOT NULL,
+    shipping_country VARCHAR(100) NOT NULL,
+    shipping_complement VARCHAR(255),
+    billing_street VARCHAR(255) NOT NULL,
+    billing_number INT NOT NULL,
+    billing_city VARCHAR(100) NOT NULL,
+    billing_state VARCHAR(100) NOT NULL,
+    billing_zip_code VARCHAR(20) NOT NULL,
+    billing_country VARCHAR(100) NOT NULL,
+    billing_complement VARCHAR(255),
+    CONSTRAINT fk_user_keycloak FOREIGN KEY (user_keycloak_id) REFERENCES users(keycloak_id) ON DELETE CASCADE
+);
+
+-- Order items
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL,
+    product_id UUID NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(18, 2) NOT NULL,
+    currency_code VARCHAR(3) NOT NULL,
+    total_price DECIMAL(18, 2) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT order_items_total_price_check CHECK (total_price = unit_price * quantity),
+    CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
+
 -- Discounts
 CREATE TABLE discounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -178,58 +224,25 @@ CREATE TABLE applied_discounts (
 -- Discount history
 CREATE TABLE discount_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    discount_id UUID NOT NULL,
-    user_keycloak_id VARCHAR(255) NOT NULL,
-    order_id UUID NULL,
-    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT fk_discount FOREIGN KEY (discount_id) REFERENCES discounts(id) ON DELETE CASCADE,
-    CONSTRAINT fk_user_keycloak FOREIGN KEY (user_keycloak_id) REFERENCES users(keycloak_id) ON DELETE CASCADE
-);
-
--- Orders
-CREATE TABLE orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_keycloak_id VARCHAR(36) NOT NULL,
-    total_amount DECIMAL(18,2) NOT NULL,
-    discount_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
-    total_with_discount DECIMAL(18,2) NOT NULL DEFAULT 0,
-    currency_code VARCHAR(3) NOT NULL,
-    order_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    status SMALLINT NOT NULL CHECK (status IN (1, 2, 3, 4, 5)),
-    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMP WITHOUT TIME ZONE,
-    shipping_street VARCHAR(255) NOT NULL,
-    shipping_number INT NOT NULL,
-    shipping_city VARCHAR(100) NOT NULL,
-    shipping_state VARCHAR(100) NOT NULL,
-    shipping_zip_code VARCHAR(20) NOT NULL,
-    shipping_country VARCHAR(100) NOT NULL,
-    shipping_complement VARCHAR(255),
-    billing_street VARCHAR(255) NOT NULL,
-    billing_number INT NOT NULL,
-    billing_city VARCHAR(100) NOT NULL,
-    billing_state VARCHAR(100) NOT NULL,
-    billing_zip_code VARCHAR(20) NOT NULL,
-    billing_country VARCHAR(100) NOT NULL,
-    billing_complement VARCHAR(255),
-    CONSTRAINT fk_user_keycloak FOREIGN KEY (user_keycloak_id) REFERENCES users(keycloak_id) ON DELETE CASCADE
-);
-
--- Order items
-CREATE TABLE order_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL,
-    product_id UUID NOT NULL,
-    quantity INT NOT NULL,
-    unit_price DECIMAL(18, 2) NOT NULL,
-    currency_code VARCHAR(3) NOT NULL,
-    total_price DECIMAL(18, 2) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    customer_id VARCHAR(255) NOT NULL,
+    discount_id UUID NOT NULL,
+    discount_type SMALLINT NOT NULL CHECK (discount_type IN (1, 2, 3)),
+    discount_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    percentage DECIMAL(5, 2),
+    fixed_amount DECIMAL(10, 2),
+    coupon_code VARCHAR(255),
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT order_items_total_price_check CHECK (total_price = unit_price * quantity),
-    CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    CONSTRAINT fk_discount_history_order FOREIGN KEY (order_id) REFERENCES orders(id),
+    CONSTRAINT fk_discount_history_customer FOREIGN KEY (customer_id) REFERENCES users(keycloak_id),
+    CONSTRAINT fk_discount_history_discount FOREIGN KEY (discount_id) REFERENCES discounts(id) ON DELETE CASCADE,
+
+     CONSTRAINT check_discount_values CHECK (
+        (discount_type = 1 AND fixed_amount IS NOT NULL AND percentage IS NULL) OR  -- Fixed amount discount
+        (discount_type = 2 AND percentage IS NOT NULL AND fixed_amount IS NULL) OR  -- Percentage discount
+        (discount_type = 3 AND ((fixed_amount IS NOT NULL OR percentage IS NOT NULL) AND coupon_code IS NOT NULL))  -- Discount with coupon
+    )
 );
 
 -- Payment records

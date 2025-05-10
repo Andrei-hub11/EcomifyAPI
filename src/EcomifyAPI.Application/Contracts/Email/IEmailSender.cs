@@ -10,4 +10,5 @@ public interface IEmailSender
     Task SendPaymentCancellationEmail(string toAddress, OrderDetails orderDetails);
     Task SendPaymentRefundEmail(string toAddress, OrderDetails orderDetails);
     Task SendOrderConfirmationEmail(string toAddress, OrderConfirmationEmail orderDetails);
+    Task SendDeliveryConfirmationEmail(string toAddress, DeliveryConfirmationEmail email, CancellationToken cancellationToken = default);
 }

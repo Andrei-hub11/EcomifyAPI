@@ -1,5 +1,6 @@
 INSERT INTO categories (name, description)
 VALUES 
+  ('Eletrônicos', 'Dispositivos eletrônicos como celulares, notebooks e fones'),
   ('Livros', 'Livros físicos e e-books'),
   ('Móveis', 'Móveis para casa e escritório'),
   ('Roupas', 'Vestuário e acessórios');
